@@ -20,7 +20,7 @@ I have written a simple Python program `schema-to-openapi.py` that helps with th
 because it would end up generating a field named `global` which is a reserved Python keyword. Therefore, we will change it to `globals` instead.
 When we read in an MNX document, we simply need to make sure to do the same translation so we can use our generated code.
 
-I only had partial success with this, so this is not really used in the project. (The project is meant to be a prototype anyway.)
+I only had partial success with this, so this is not really used in the project.
 
 [mnx-schema]: https://w3c.github.io/mnx/docs/mnx-schema.json
 [json-schema]: https://json-schema.org/
@@ -41,7 +41,7 @@ mv ../openapi.json .
 
 ### Testing the dataclasses
 
-Continuing from earlier, we can try running the following code
+Continuing from earlier, we can try running the following code (while in `/target/src`)
 ```py
 import json
 import os
@@ -96,3 +96,19 @@ Failed to validate liszt.json
 ```
 As you can see, in the code, we are able to access `result.globals.measures`. Thanks, type system.
 However, it seems like we are still having trouble validating some pieces.
+I have spent a lot of time looking into this, but the resulting error messages have not been
+very helpful in debugging. I reckon it has something to do with how this code generator tool
+does not quite fully support all features of JSON Schema yet. (For example, I have to explicitly
+remove the keywords `const` in my conversion script. This means we don't really have
+a good way of representing tagged unions with our dataclasses.)
+
+As a result of these issues, I have decided to drop this line of inquiry
+and proceeded with working on this project without the type system's help.
+Indeed, as you may have noticed, I have not really tried to extract the generated schemas
+from `target/src` yet. (It is somewhat tricky, since it also relies on other pieces of generated code,
+in a pretty complicated, generated project.) Obviously, this could not be used to contribute to music21.
+
+If one is ever interested in attempting this, I believe it might be the best to
+simply write your own JSON-schema-to-Python-dataclasses generator that supports
+the subset of features used by the MNX schema. This should generate pretty clean and readable code
+and should be fairly minimal.
