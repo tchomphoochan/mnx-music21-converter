@@ -1,0 +1,3 @@
+[submodule "openapi-json-schema-generator"]
+	path = openapi-json-schema-generator
+	url = git@github.com:openapi-json-schema-tools/openapi-json-schema-generator.git
