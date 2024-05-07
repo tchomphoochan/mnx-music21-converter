@@ -508,7 +508,7 @@
   "additionalProperties": false,
   "description": "An encoding of Common Western Music Notation.",
   "properties": {
-    "global": {
+    "globals": {
       "additionalProperties": false,
       "properties": {
         "measures": {
