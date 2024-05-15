@@ -3,49 +3,49 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct TopLevel {
-    title: String,
+pub struct TopLevel {
+    pub title: String,
 
     #[serde(default, rename = "$defs")]
-    defs: HashMap<String, Schema>,
+    pub defs: HashMap<String, Schema>,
 
     #[serde(rename = "$id")]
-    id: String,
+    pub id: String,
 
     #[serde(rename = "$schema")]
-    metaschema: String,
+    pub metaschema: String,
 
     #[serde(rename = "description")]
-    description: String,
+    pub description: String,
 
     #[serde(flatten)]
-    content: Schema
+    pub content: Schema
 }
 impl Eq for TopLevel {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-enum Type {
+pub enum Type {
     Schema(Schema),
     AnyOf(AnyOf),
     Ref(Ref)
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct AnyOf {
+pub struct AnyOf {
     #[serde(rename = "anyOf")]
-    any_of: Vec<Type>
+    pub any_of: Vec<Type>
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Ref {
+pub struct Ref {
     #[serde(rename = "$ref")]
-    ref_id: String
+    pub ref_id: String
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-enum Schema {
+pub enum Schema {
     Array(ArraySchema),
     Integer(IntegerSchema),
     String(StringSchema),
@@ -55,53 +55,42 @@ enum Schema {
 impl Eq for Schema {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct ArraySchema {
-    items: Box<Type>
+pub struct ArraySchema {
+    pub items: Box<Type>
 }
 impl Eq for ArraySchema {}
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
-struct IntegerSchema {
-
+pub struct SingleValueSchema<T> {
     #[serde(default, rename = "const")]
-    const_value: Option<i32>,
+    pub const_value: Option<T>,
 
     #[serde(default, rename = "enum")]
-    enum_values: Option<Vec<i32>>
+    pub enum_values: Option<Vec<T>>
 }
-impl Eq for IntegerSchema {}
+impl<T> SingleValueSchema<T> where T : Clone {
+    pub fn choices(&self) -> Option<Vec<T>> {
+        if let Some(v) = self.const_value.as_ref() {
+            Some(vec![v.clone()])
+        } else {
+            self.enum_values.as_ref().map(|x| x.to_owned())
+        }
+    }
+}
+
+pub type IntegerSchema = SingleValueSchema<i32>;
+pub type StringSchema = SingleValueSchema<String>;
+pub type BooleanSchema = SingleValueSchema<bool>;
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
-struct StringSchema {
-
-    #[serde(default, rename = "const")]
-    const_value: Option<String>,
-
-    #[serde(default, rename = "enum")]
-    enum_values: Option<Vec<String>>
-}
-impl Eq for StringSchema {}
-
-#[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
-struct BooleanSchema {
-
-    #[serde(default, rename = "const")]
-    const_value: Option<bool>,
-
-    #[serde(default, rename = "enum")]
-    enum_values: Option<Vec<bool>>
-}
-impl Eq for BooleanSchema {}
-
-#[derive(Default, Debug, PartialEq, Serialize, Deserialize)]
-struct ObjectSchema {
-    properties: HashMap<String, Type>,
+pub struct ObjectSchema {
+    pub properties: HashMap<String, Type>,
     
     #[serde(rename = "additionalProperties")]
-    additional_properties: bool,
+    pub additional_properties: bool,
 
     #[serde(default)]
-    required: Vec<String>
+    pub required: Vec<String>
 }
 impl Eq for ObjectSchema {}
 
