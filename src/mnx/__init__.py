@@ -289,7 +289,7 @@ class DefBeam(JSONWizard):
     # optional fields:
     hooks: Optional[list[Hook]] = json_field(["hooks"], default=None)
     # inner: Optional[DefBeamList] = json_field(["inner"], default=None)
-    inner: Optional[dict] = json_field(["inner"], default=None)
+    inner: Optional[list] = json_field(["inner"], default=None)
 
 @dataclass
 class DefNoteValueQuantity(JSONWizard):

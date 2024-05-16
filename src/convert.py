@@ -1,7 +1,7 @@
-from typing import Optional
-
+from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam
 import music21
-from music21 import converter, note, stream, meter, duration, chord, pitch, key
+from typing import Optional, cast
+
 import json
 import mnx
 
@@ -78,11 +78,16 @@ class MNXConverter(converter.subConverters.SubConverter):
         # TODO: handle globalMeas.segno
         # TODO: handle globalMeas.repeat_end
 
+        # Parse each voice within the measure
         for seq in inMeas.sequences:
             v = self.parseSequence(seq)
             outMeas.append(v)
 
-        # TODO: handle inMeas.beams
+        if inMeas.beams is not None:
+            for b in inMeas.beams:
+                b = mnx.DefBeam.from_dict(b)
+                self.processBeam(b, 1)
+
         # TODO: handle inMeas.clefs
 
         # If the measure has only one voice, there is no need to have a stream.Voice object.
@@ -129,7 +134,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             if len(allNotes) == 1:
                 # single note
                 n = allNotes[0]
-                self.setId(n, inEvent.id)  # this will replace the note's ID, but the mapping remains
+                self.setId(n, inEvent.id, True)  # this will replace the note's ID, but the mapping remains
                 return n
             else:
                 # chord
@@ -177,6 +182,9 @@ class MNXConverter(converter.subConverters.SubConverter):
             '1024th': '1024th',
             '2048th': '2048th',
         }
+        if inDur.base == '4096th':
+            raise ValueError("MNX has 4096th but music21 only supports up to 2048th")
+
         return duration.Duration(
             type=mnxToM21Type[inDur.base],
             dots=0 if inDur.dots is None else inDur.dots,
@@ -211,15 +219,62 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         return outNote
 
-    def setId(self, obj: music21.Music21Object, value: Optional[str]) -> None:
-        if value is not None:
-            obj.id = value
-            self.idMappings[value] = obj
+    def processBeam(self, inBeam: mnx.DefBeam, level: int) -> None:
+
+        # Add full beams
+        assert len(inBeam.events), "A beam must consist of at least one events; use a hook instead."
+        for i, eventId in enumerate(inBeam.events):
+            n = self.lookup(eventId)
+            assert isinstance(n, note.NotRest)
+
+            beamType: str
+            if i == 0:
+                beamType = 'start'
+            elif i == len(inBeam.events)-1:
+                beamType = 'stop'
+            else:
+                beamType = 'continue'
+            n.beams.append(beam.Beam(type=beamType, number=level))
+
+        # Add inner beams
+        if inBeam.inner is not None:
+            assert inBeam.hooks is None, "It does not make sense for inner beams and hooks to be specified at the same level."
+            for n in inBeam.inner:
+                n = mnx.DefBeam.from_dict(n)
+                self.processBeam(n, level+1)
+
+        # Add hooks
+        if inBeam.hooks is not None:
+            assert inBeam.inner is None, "It does not make sense for inner beams and hooks to be specified at the same level."
+            for hook in inBeam.hooks:
+                n = self.lookup(hook.event)
+                assert isinstance(n, note.NotRest)
+                n.beams.append(beam.Beam(type="partial", direction=hook.direction, number=level+1))
+
+    def setId(self, obj: music21.Music21Object, ident: Optional[str], allowShadowing: bool = False) -> None:
+        # ident stands for identifier
+        if ident is None:
+            return
+
+        if ident in self.idMappings:
+            raise KeyError(ident, obj, "Identifier already exists in the ID mapping.")
+
+        if not allowShadowing:
+            if obj.id in self.idMappings:
+                raise ValueError(ident, obj, "The object already has an existing identifier. Should not rewrite.")
+
+        obj.id = ident
+        self.idMappings[ident] = obj
+
+    def lookup(self, ident: str) -> music21.Music21Object:
+        if ident not in self.idMappings:
+            raise KeyError(ident, "Identifier does not exist in the ID mappings")
+        return self.idMappings[ident]
 
 
 converter.registerSubConverter(MNXConverter)
 
-s = ""
+s: str
 with open('../examples/bach_minuet.json', 'r') as f:
     s = f.read()
 sc = converter.parse(s, format="mnx")
