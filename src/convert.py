@@ -92,9 +92,9 @@ class MNXConverter(converter.subConverters.SubConverter):
                 self.processBeam(b, 1)
 
         if inMeas.clefs is not None:
-            for c in inMeas.clefs:
-                c = self.parseClef(c)
-                outMeas.insert(c)
+            for inClef in inMeas.clefs:
+                outClef = self.parseClef(inClef)
+                outMeas.insert(outClef)
 
         # If the measure has only one voice, there is no need to have a stream.Voice object.
         return outMeas.flattenUnnecessaryVoices()
@@ -230,8 +230,8 @@ class MNXConverter(converter.subConverters.SubConverter):
         # Add full beams
         assert len(inBeam.events), "A beam must consist of at least one events; use a hook instead."
         for i, eventId in enumerate(inBeam.events):
-            n = self.lookup(eventId)
-            assert isinstance(n, note.NotRest)
+            even = self.lookup(eventId)
+            assert isinstance(even, note.NotRest)
 
             beamType: str
             if i == 0:
@@ -240,7 +240,7 @@ class MNXConverter(converter.subConverters.SubConverter):
                 beamType = 'stop'
             else:
                 beamType = 'continue'
-            n.beams.append(beam.Beam(type=beamType, number=level))
+            even.beams.append(beam.Beam(type=beamType, number=level))
 
         # Add inner beams
         if inBeam.inner is not None:
