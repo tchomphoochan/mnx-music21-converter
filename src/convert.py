@@ -1,8 +1,6 @@
-from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam
+from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef
 import music21
 from typing import Optional, cast
-
-import json
 import mnx
 
 
@@ -10,7 +8,9 @@ class MNXConverter(converter.subConverters.SubConverter):
     registerFormats = ("mnx",)
     registerInputExtensions = ("json",)
 
+    # Maps MNX object IDs to corresponding Music21Object we created (usually notes or chords)
     idMappings: dict[str, music21.Music21Object]
+
     globalInfo: mnx.Top.Global
 
     def parseData(self, strData: str, number: int | None = None) -> None:
@@ -83,12 +83,18 @@ class MNXConverter(converter.subConverters.SubConverter):
             v = self.parseSequence(seq)
             outMeas.append(v)
 
+        # Add beams to the notes
+        # TODO: Handle beams across barlines (as it stands right now,
+        #       the event lookups fail because things from the future measures aren't available.)
         if inMeas.beams is not None:
             for b in inMeas.beams:
                 b = mnx.DefBeam.from_dict(b)
                 self.processBeam(b, 1)
 
-        # TODO: handle inMeas.clefs
+        if inMeas.clefs is not None:
+            for c in inMeas.clefs:
+                c = self.parseClef(c)
+                outMeas.insert(c)
 
         # If the measure has only one voice, there is no need to have a stream.Voice object.
         return outMeas.flattenUnnecessaryVoices()
@@ -251,6 +257,38 @@ class MNXConverter(converter.subConverters.SubConverter):
                 assert isinstance(n, note.NotRest)
                 n.beams.append(beam.Beam(type="partial", direction=hook.direction, number=level+1))
 
+    def parseClef(self, inClef: mnx.Top.Part.Measure.Clef) -> clef.Clef:
+        signToClefType: dict[str, clef.Clef] = {
+            'C': clef.CClef(),
+            'F': clef.FClef(),
+            'G': clef.GClef(),
+        }
+        outClef = signToClefType[inClef.clef.sign]
+
+        # How to specify clef position isn't clear from the MNX spec.
+        # My understanding is that 0 refers to the center line, -1 refers to
+        # the gap below, -2 refers to the line below (e.g. Treble clef), ...
+        # Positive numbers refer to spaces or lines above.
+        # Meanwhile, for Music21, the bottom line is line 1, next line up is 2, ...
+        # There doesn't seem to be any support for clefs that go in between lines.
+        pos = 3 + inClef.clef.staff_position/2
+        assert pos % 1.0 == 0.0, "Music21 only supports clefs on lines, not spaces."
+        pos = int(pos)
+        outClef.line = pos
+
+        if inClef.position is not None:
+            outClef.offset = self.parseFraction(inClef.position.fraction)
+            # TODO: handle inClef.position.grace_index
+
+        return outClef
+
+    def parseFraction(self, frac: list[int]) -> float:
+        # MNX never specifies how to read fractions.
+        # In fact, it never says that fraction has to be a list of two elements.
+        # Therefore, I'm making assumptions here.
+        assert len(frac) == 2, "Fraction has to have exactly two elements."
+        return frac[0]/frac[1]
+
     def setId(self, obj: music21.Music21Object, ident: Optional[str], allowShadowing: bool = False) -> None:
         # ident stands for identifier
         if ident is None:
@@ -279,4 +317,5 @@ with open('../examples/bach_minuet.json', 'r') as f:
     s = f.read()
 sc = converter.parse(s, format="mnx")
 sc.show('t')
-sc.show('musicxml.pdf', makeNotation=False)
+# sc.show('musicxml.pdf', makeNotation=False)
+sc.show(makeNotation=False)

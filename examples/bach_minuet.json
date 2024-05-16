@@ -23,7 +23,7 @@
       {
          "measures": [
             {
-                "beams": [{"events": ["ev1", "ev2", "ev3", "ev4"]}],
+               "beams": [{"events": ["ev1", "ev2", "ev3", "ev4"]}],
                "clefs": [
                   {
                      "clef": {
