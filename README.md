@@ -170,8 +170,7 @@ I don't forget to manually run the parser for the inner dictionary.
 Similarly, on line 48 of `src/mnx/__init__.py`, for `DefSystemLayoutContentChoice0`, I replaced the reference
 with `DefSystemLayoutContent` to just an untyped `list`.
 
-
-Finally, one more runtime error: `dataclass_wizard` is actually pretty bad at dealing with parsing unions.
+One more runtime error: `dataclass_wizard` is actually pretty bad at dealing with parsing unions.
 It looks for a very specific pattern indicating the use of discriminated unions.
 Luckily, MNX is pretty consistent in this regard, so I decided to add a hack in my `schema-wizard-rs`.
 This hack simply adds `JSONWizard.Meta` information to tell JSON wizard how to discriminate the union types.
@@ -183,6 +182,8 @@ class _(JSONWizard.Meta):
 ```
 
 (I could have done this in the code generator, but that's too much effort.)
+
+Finally, I didn't quite implement enums properly and choose to just use `Literal[a, b, c, ...]` to indicate the possibilities.
 
 Now that everything is ready, we can try parsing and re-printing everything.
 ```sh
