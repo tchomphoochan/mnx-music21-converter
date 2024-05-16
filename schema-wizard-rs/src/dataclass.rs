@@ -150,11 +150,11 @@ fn to_safe_key(s: &str) -> String {
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Integer,
-    IntegerLiteral(i32),
+    IntegerLiteral(Vec<i32>),
     String,
-    StringLiteral(String),
+    StringLiteral(Vec<String>),
     Boolean,
-    BooleanLiteral(bool),
+    BooleanLiteral(Vec<bool>),
     TypeName(String),
     List(Box<Type>),
     Union(Vec<Type>)
@@ -166,18 +166,20 @@ impl Type {
             Type::Integer => "int".into(),
             Type::String => "str".into(),
             Type::Boolean => "bool".into(),
-            Type::TypeName(x) => format!("'{}'", x),
+            Type::TypeName(x) => format!("{}", x),
             Type::List(inner_type) => format!("list[{}]", inner_type.as_ref().get_type_name()),
             Type::Union(types) => {
                 let names: Vec<String> = types.iter().map(|typ| typ.get_type_name()).collect();
                 format!("Union[{}]", names.join(", "))
             }
-            Type::IntegerLiteral(x) => format!("Literal[{}]", x),
-            Type::StringLiteral(x) => format!("Literal['{}']", x),
-            Type::BooleanLiteral(x) => match x {
-                true => "True".into(),
-                false => "False".into()
-            }
+            Type::IntegerLiteral(vals) => format!("Literal[{}]", vals.iter().map(|val| format!("{}",val)).collect::<Vec::<String>>().join(", ")),
+            Type::StringLiteral(vals) => format!("Literal[{}]", vals.iter().map(|val| format!("{:?}",val)).collect::<Vec::<String>>().join(", ")),
+            Type::BooleanLiteral(vals) => format!("Literal[{}]", vals.iter().map(|val| {
+                match val {
+                    true => "True",
+                    false => "False"
+                }.into()
+            }).collect::<Vec::<String>>().join(", ")),
         }
     }
     fn get_refs(&self) -> HashSet<String> {
@@ -261,11 +263,8 @@ pub fn parse_dataclass(name: &str, typ: &schema::Type) -> (HashMap<String, Datac
                 Some(choices) => {
                     if choices.len() == 0 {
                         panic!("Empty enum for an integer schema.")
-                    } else if choices.len() == 1 {
-                        (HashMap::new(), Type::IntegerLiteral(choices.get(0).unwrap().clone()))
                     } else {
-                        let results: Vec<Type> = choices.iter().map(|x| Type::IntegerLiteral(x.clone())).collect();
-                        (HashMap::new(), Type::Union(results))
+                        (HashMap::new(), Type::IntegerLiteral(choices))
                     }
 
                 },
@@ -275,11 +274,8 @@ pub fn parse_dataclass(name: &str, typ: &schema::Type) -> (HashMap<String, Datac
                 Some(choices) => {
                     if choices.len() == 0 {
                         panic!("Empty enum for an string schema.")
-                    } else if choices.len() == 1 {
-                        (HashMap::new(), Type::StringLiteral(choices.get(0).unwrap().clone()))
                     } else {
-                        let results: Vec<Type> = choices.iter().map(|x| Type::StringLiteral(x.clone())).collect();
-                        (HashMap::new(), Type::Union(results))
+                        (HashMap::new(), Type::StringLiteral(choices))
                     }
 
                 },
@@ -289,11 +285,8 @@ pub fn parse_dataclass(name: &str, typ: &schema::Type) -> (HashMap<String, Datac
                 Some(choices) => {
                     if choices.len() == 0 {
                         panic!("Empty enum for an string schema.")
-                    } else if choices.len() == 1 {
-                        (HashMap::new(), Type::BooleanLiteral(choices.get(0).unwrap().clone()))
                     } else {
-                        let results: Vec<Type> = choices.iter().map(|x| Type::BooleanLiteral(x.clone())).collect();
-                        (HashMap::new(), Type::Union(results))
+                        (HashMap::new(), Type::BooleanLiteral(choices))
                     }
 
                 },
@@ -347,7 +340,7 @@ impl SchemaPrinter {
         printer.add_line("from datetime import date".into());
         printer.add_line("from enum import Enum".into());
         printer.add_line("from typing import *".into());
-        printer.add_line("from dataclass_wizard import JSONWizard, json_field  # mypy: ignore".into());
+        printer.add_line("from dataclass_wizard import JSONWizard, json_field  # type: ignore".into());
 
         // sort the definitions
         let order = DefsSorter::compute_order(defs);
@@ -473,10 +466,10 @@ mod test {
         let scm: schema::Type = serde_json::from_value(input).unwrap();
         let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
-        assert_eq!(typ, Type::Union(vec![
-            Type::StringLiteral("hi".into()),
-            Type::StringLiteral("hello".into()),
-            Type::StringLiteral("bye".into()),
+        assert_eq!(typ, Type::StringLiteral(vec![
+            "hi".into(),
+            "hello".into(),
+            "bye".into(),
         ]));
     }
 
@@ -492,7 +485,7 @@ mod test {
         let scm: schema::Type = serde_json::from_value(input).unwrap();
         let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
-        assert_eq!(typ, Type::StringLiteral("hewo".into()));
+        assert_eq!(typ, Type::StringLiteral(vec!["hewo".into()]));
     }
 
     #[test]
@@ -567,9 +560,9 @@ mod test {
             subclasses: HashMap::from([("Thing".into(), inner_dataclass)]),
             fields: HashMap::from([
                 ("things".into(), Field::new("things", Type::List(Box::new(Type::TypeName("Thing".into()))), false)),
-                ("tag".into(), Field::new("tag", Type::Union(vec![
-                    Type::StringLiteral("A".into()),
-                    Type::StringLiteral("B".into())
+                ("tag".into(), Field::new("tag", Type::StringLiteral(vec![
+                    "A".into(),
+                    "B".into()
                 ]), true))
             ])
         })]));
