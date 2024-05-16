@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use convert_case::{Case, Casing};
@@ -10,14 +11,16 @@ pub struct Enum<T> {
     name: String,
     items: Vec<T>
 }
+impl<T> Eq for Enum<T> where T : Eq {}
 
 #[derive(Debug, PartialEq)]
 pub struct Dataclass {
     name: String,
-    definitions: Vec<Dataclass>,
+    definitions: HashMap<String, Dataclass>,
     dependencies: Vec<(String, String)>, // (x,y) means x depends on y
-    fields: Vec<Field>
+    fields: HashMap<String, Field>
 }
+impl Eq for Dataclass {}
 
 #[derive(Debug, PartialEq)]
 pub struct Field {
@@ -116,7 +119,7 @@ fn resolve_ref(name: &str) -> String {
     ret
 }
 
-pub fn parse(name: &str, typ: &schema::Type) -> (Vec<Dataclass>, Type) {
+pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Type) {
     match typ {
         schema::Type::Schema(sch) => match sch {
             Schema::Array(sch) => {
@@ -128,51 +131,51 @@ pub fn parse(name: &str, typ: &schema::Type) -> (Vec<Dataclass>, Type) {
                     if choices.len() == 0 {
                         panic!("Empty enum for an integer schema.")
                     } else if choices.len() == 1 {
-                        (vec![], Type::IntegerLiteral(choices.get(0).unwrap().clone()))
+                        (HashMap::new(), Type::IntegerLiteral(choices.get(0).unwrap().clone()))
                     } else {
                         let results: Vec<Type> = choices.iter().map(|x| Type::IntegerLiteral(x.clone())).collect();
-                        (vec![], Type::Union(results))
+                        (HashMap::new(), Type::Union(results))
                     }
 
                 },
-                None => (vec![], Type::Integer),
+                None => (HashMap::new(), Type::Integer),
             },
             Schema::String(sch) => match sch.choices() {
                 Some(choices) => {
                     if choices.len() == 0 {
                         panic!("Empty enum for an string schema.")
                     } else if choices.len() == 1 {
-                        (vec![], Type::StringLiteral(choices.get(0).unwrap().clone()))
+                        (HashMap::new(), Type::StringLiteral(choices.get(0).unwrap().clone()))
                     } else {
                         let results: Vec<Type> = choices.iter().map(|x| Type::StringLiteral(x.clone())).collect();
-                        (vec![], Type::Union(results))
+                        (HashMap::new(), Type::Union(results))
                     }
 
                 },
-                None => (vec![], Type::String),
+                None => (HashMap::new(), Type::String),
             },
             Schema::Boolean(sch) => match sch.choices() {
                 Some(choices) => {
                     if choices.len() == 0 {
                         panic!("Empty enum for an string schema.")
                     } else if choices.len() == 1 {
-                        (vec![], Type::BooleanLiteral(choices.get(0).unwrap().clone()))
+                        (HashMap::new(), Type::BooleanLiteral(choices.get(0).unwrap().clone()))
                     } else {
                         let results: Vec<Type> = choices.iter().map(|x| Type::BooleanLiteral(x.clone())).collect();
-                        (vec![], Type::Union(results))
+                        (HashMap::new(), Type::Union(results))
                     }
 
                 },
-                None => (vec![], Type::Boolean),
+                None => (HashMap::new(), Type::Boolean),
             },
             Schema::Object(sch) => {
                 assert!(sch.additional_properties == false);
-                let mut all_defs = Vec::<Dataclass>::new();
-                let mut fields = Vec::<Field>::new();
+                let mut all_defs = HashMap::<String, Dataclass>::new();
+                let mut fields = HashMap::<String, Field>::new();
                 for (k, v) in sch.properties.iter() {
-                    let (mut defs, typ) = parse(k, v);
-                    all_defs.append(&mut defs);
-                    fields.push(Field::new(k, typ, sch.required.contains(k)))
+                    let (defs, typ) = parse(k, v);
+                    all_defs.extend(defs);
+                    fields.insert(k.to_string(), Field::new(k, typ, sch.required.contains(k)));
                 }
                 let c = Dataclass {
                     name: make_class_name(name),
@@ -180,22 +183,23 @@ pub fn parse(name: &str, typ: &schema::Type) -> (Vec<Dataclass>, Type) {
                     dependencies: vec![],
                     fields,
                 };
-                (vec![c], Type::TypeName(make_class_name(name)))
+                (HashMap::from([(make_class_name(name), c)]), Type::TypeName(make_class_name(name)))
             },
         },
         schema::Type::AnyOf(schema::AnyOf { any_of: choices }) => {
-            let mut all_defs = Vec::<Dataclass>::new();
+            let mut all_defs = HashMap::<String, Dataclass>::new();
             let mut types = Vec::<Type>::new();
-            let i = 0;
+            let mut i = 0;
             for v in choices.iter() {
                 let k = format!("{}_choice_{}", name, i);
                 let (mut defs, typ) = parse(&k, v);
-                all_defs.append(&mut defs);
-                types.push(typ)
+                all_defs.extend(defs);
+                types.push(typ);
+                i += 1
             }
             (all_defs, Type::Union(types))
         },
-        schema::Type::Ref(x) => (vec![], Type::TypeName(make_class_name(&resolve_ref(&x.ref_id)))),
+        schema::Type::Ref(x) => (HashMap::new(), Type::TypeName(make_class_name(&resolve_ref(&x.ref_id)))),
     }
 }
 
@@ -221,19 +225,19 @@ impl DataclassPrinter {
         self.level += 1;
 
         // TODO: reorder by topological sorting
-        for def in dataclass.definitions.iter() {
+        for (_name, def) in dataclass.definitions.iter() {
             self.run(def);
         }
 
         // must re-order so required fields come before not-required fields
         self.add_line(format!("# required fields:"));
-        for field in dataclass.fields.iter() {
+        for (_key, field) in dataclass.fields.iter() {
             if field.required {
                 self.add_line(format!("{}", field));
             }
         }
         self.add_line(format!("# optional fields:"));
-        for field in dataclass.fields.iter() {
+        for (_key, field) in dataclass.fields.iter() {
             if !field.required {
                 self.add_line(format!("{}", field));
             }
@@ -249,5 +253,178 @@ impl DataclassPrinter {
         let mut s = s;
         s.insert_str(0, "  ".repeat(self.level).as_str());
         self.lines.push(s)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use serde_json::json;
+    use super::*;
+
+    #[test]
+    fn integer_type() {
+        let input = json!(
+            {
+                "type": "integer"
+            }
+        );
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        assert_eq!(defs, HashMap::from([]));
+        assert_eq!(typ, Type::Integer);
+    }
+
+    #[test]
+    fn object_with_integer() {
+        let input = json!(
+            {
+                "additionalProperties": false,
+                "properties": {
+                    "hello": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "hello"
+                ]
+            }
+        );
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        assert_eq!(defs, HashMap::from([(
+            "Top".into(),
+            Dataclass {
+                name: "Top".into(),
+                definitions: HashMap::new(),
+                dependencies: vec![],
+                fields: HashMap::from([(
+                    "hello".to_string(),
+                    Field::new("hello", Type::Integer, true)
+                )])
+            }
+        )]));
+        assert_eq!(typ, Type::TypeName("Top".into()));
+    }
+
+    #[test]
+    fn string_enum() {
+        let input = json!(
+            {
+                "type": "string",
+                "enum": [
+                    "hi",
+                    "hello",
+                    "bye"
+                ]
+            }
+        );
+
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        assert_eq!(defs, HashMap::from([]));
+        assert_eq!(typ, Type::Union(vec![
+            Type::StringLiteral("hi".into()),
+            Type::StringLiteral("hello".into()),
+            Type::StringLiteral("bye".into()),
+        ]));
+    }
+
+    #[test]
+    fn string_const() {
+        let input = json!(
+            {
+                "type": "string",
+                "const": "hewo"
+            }
+        );
+
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        assert_eq!(defs, HashMap::from([]));
+        assert_eq!(typ, Type::StringLiteral("hewo".into()));
+    }
+
+    #[test]
+    fn array() {
+        let input = json!(
+            {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        );
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        assert_eq!(defs, HashMap::from([]));
+        assert_eq!(typ, Type::List(Box::new(Type::String)));
+    }
+
+    #[test]
+    fn complex_array_object() {
+        let inner_item = json!(
+            {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "word": {
+                        "type": "string"
+                    },
+                    "num": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "word"
+                ]
+            }
+        );
+        let input = json!(
+            {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "things": {
+                        "type": "array",
+                        "items": inner_item
+                    },
+                    "tag": {
+                        "type": "string",
+                        "enum": [
+                            "A",
+                            "B"
+                        ]
+                    }
+                },
+                "required": [
+                    "tag"
+                ]
+            }
+        );
+        let scm: schema::Type = serde_json::from_value(input).unwrap();
+        let (defs, typ) = parse("top", &scm);
+        let inner_dataclass = Dataclass {
+            name: "Thing".into(),
+            definitions: HashMap::from([]),
+            dependencies: vec![],
+            fields: HashMap::from([
+                ("word".into(), Field::new("word", Type::String, true)),
+                ("num".into(), Field::new("num", Type::Integer, false))
+            ])
+        };
+        assert_eq!(defs, HashMap::from([("Top".into(), Dataclass {
+            name: "Top".into(),
+            definitions: HashMap::from([("Thing".into(), inner_dataclass)]),
+            dependencies: vec![],
+            fields: HashMap::from([
+                ("things".into(), Field::new("things", Type::List(Box::new(Type::TypeName("Thing".into()))), false)),
+                ("tag".into(), Field::new("tag", Type::Union(vec![
+                    Type::StringLiteral("A".into()),
+                    Type::StringLiteral("B".into())
+                ]), true))
+            ])
+        })]));
+        assert_eq!(typ, Type::TypeName("Top".into()));
     }
 }

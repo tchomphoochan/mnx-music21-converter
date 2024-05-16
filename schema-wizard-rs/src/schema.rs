@@ -30,18 +30,21 @@ pub enum Type {
     AnyOf(AnyOf),
     Ref(Ref)
 }
+impl Eq for Type {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct AnyOf {
     #[serde(rename = "anyOf")]
     pub any_of: Vec<Type>
 }
+impl Eq for AnyOf {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ref {
     #[serde(rename = "$ref")]
     pub ref_id: String
 }
+impl Eq for Ref {}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -94,6 +97,7 @@ pub struct ObjectSchema {
 }
 impl Eq for ObjectSchema {}
 
+#[cfg(test)]
 mod test {
     use super::*;
 
