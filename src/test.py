@@ -1,7 +1,7 @@
 import mnx
 import json
 
-with open("../examples/example_hello_world.json", "r") as f:
+with open("../examples/bach_minuet.json", "r") as f:
     s = f.read()
 print(mnx.Top.from_json(s))
 

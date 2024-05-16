@@ -215,7 +215,7 @@ impl Type {
 }
 
 fn singularize_name(name: &str) -> String {
-    name.trim_end_matches("s").to_string()
+    name.trim_end_matches("s").trim_end_matches("-list").to_string()
 }
 
 fn make_field_name(name: &str) -> String {
@@ -387,7 +387,7 @@ impl SchemaPrinter {
         if let Some(ref s) = dataclass.json_meta.tag {
             self.add_line(format!("class _(JSONWizard.Meta):"));
             self.level += 1;
-            self.add_line(format!("tag_key = '{}'", s));
+            self.add_line(format!("tag = '{}'", s));
             self.level -= 1;
         }
 
