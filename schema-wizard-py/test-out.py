@@ -6,6 +6,7 @@ from dataclass_wizard import JSONWizard, json_field  # mypy: ignore
 
 DefPositiveInteger = int
 
+
 @dataclass
 class DefNoteValue(JSONWizard):
     Base = str
@@ -13,6 +14,7 @@ class DefNoteValue(JSONWizard):
     base: Base = json_field(["base"])
     # Optional fields
     dots: DefPositiveInteger = json_field(["dots"], default_factory=DefPositiveInteger)
+
 
 DefColor = str
 
@@ -70,7 +72,7 @@ class DefBeamList(JSONWizard):
     events: list[DefId] = json_field(["events"])
     # Optional fields
     hooks: list[Hook] = json_field(["hooks"], default_factory=list)
-    inner: 'DefBeamList' = json_field(["inner"], default_factory=lambda *args: None)
+    inner: "DefBeamList" = json_field(["inner"], default_factory=lambda *args: None)
 
 
 @dataclass
@@ -282,7 +284,6 @@ class DefEvent(JSONWizard):
     )
 
 
-
 @dataclass
 class DefNoteValueQuantity(JSONWizard):
     # Required fields
@@ -296,7 +297,7 @@ class DefNoteValueQuantity(JSONWizard):
 class DefSystemLayoutContentChoice00(JSONWizard):
     Type = str
     # Required fields
-    content: 'DefSystemLayoutContent' = json_field(["content"])
+    content: "DefSystemLayoutContent" = json_field(["content"])
     _type: Type = json_field(["type"])
     # Optional fields
     label: DefStaffLabel = json_field(["label"], default_factory=DefStaffLabel)
@@ -330,10 +331,10 @@ class DefSystemLayoutContentChoice01(JSONWizard):
     symbol: DefStaffSymbol = json_field(["symbol"], default_factory=DefStaffSymbol)
 
 
-
 DefSystemLayoutContent = Union[
     DefSystemLayoutContentChoice00, DefSystemLayoutContentChoice01
 ]
+
 
 @dataclass
 class MnxDocument(JSONWizard):
@@ -710,10 +711,11 @@ class MnxDocument(JSONWizard):
     layouts: list[Layout] = json_field(["layouts"], default_factory=list)
     scores: list[Score] = json_field(["scores"], default_factory=list)
 
+
 import json
 
-with open('examples/bach_minuet.json', 'r') as f:
-  d = json.load(f)
+with open("examples/bach_minuet.json", "r") as f:
+    d = json.load(f)
 
 d = MnxDocument.from_dict(d)
 print(d)
