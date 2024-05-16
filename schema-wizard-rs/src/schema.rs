@@ -19,7 +19,7 @@ pub struct TopLevel {
     pub description: String,
 
     #[serde(flatten)]
-    pub content: Schema
+    pub content: Type
 }
 impl Eq for TopLevel {}
 
@@ -299,13 +299,13 @@ mod test {
                 metaschema: "https://json-schema.org/draft/2020-12/schema".into(),
                 title: "test".into(),
                 description: "A test encoding".into(),
-                content: Schema::Object(ObjectSchema {
+                content: Type::Schema(Schema::Object(ObjectSchema {
                     properties: HashMap::from([
                         ("hello".into(), Type::Schema(Schema::Integer(IntegerSchema::default())))
                     ]),
                     additional_properties: false,
                     required: vec!["hello".into()]
-                })
+                }))
             }
         )
     }

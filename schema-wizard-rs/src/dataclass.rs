@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 
 use convert_case::{Case, Casing};
@@ -192,7 +192,7 @@ pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Typ
             let mut i = 0;
             for v in choices.iter() {
                 let k = format!("{}_choice_{}", name, i);
-                let (mut defs, typ) = parse(&k, v);
+                let (defs, typ) = parse(&k, v);
                 all_defs.extend(defs);
                 types.push(typ);
                 i += 1
