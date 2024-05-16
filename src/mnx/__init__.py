@@ -273,6 +273,7 @@ class DefEvent(JSONWizard):
 
 
 DefTupletDisplaySetting: TypeAlias = Literal["none", "inner", "both"]
+DefBeamList: TypeAlias = list
 
 
 @dataclass
@@ -290,8 +291,6 @@ class DefBeam(JSONWizard):
     hooks: Optional[list[Hook]] = json_field(["hooks"], default=None)
     # inner: Optional[DefBeamList] = json_field(["inner"], default=None)
     inner: Optional[dict] = json_field(["inner"], default=None)
-
-DefBeamList: TypeAlias = list[DefBeam]
 
 @dataclass
 class DefNoteValueQuantity(JSONWizard):

@@ -159,7 +159,9 @@ will actually fail to generate a working parser. Trying to parse any MNX file wi
 Each run of the generator is non-deterministic because of the use of hash maps. The definitions may show up in different orders, so from now on, the line numbers for `src/mnx/__init__.py` I reference are going to be based on the version that is committed.
 
 On line 275, `DefBeamList` references `DefBeam` which itself references `DefBeamList`.
-I simply surrounded the type with quotation marks to fix the warning.
+I changed the definition to just `DefBeamList: TypeAlias = list`.
+(Needed to do this because it turns out `TypeAlias` interacts weirdly with the dataclass wizard.
+Luckily this is the only problematic place.)
 
 On line 55 of `src/mnx/__init__.py`, for `DefSystemLayoutContent`, I replaced the references
 with just an untyped `dict`, since those aren't very important. Line 48 also needs quotation marks.
@@ -180,3 +182,34 @@ class _(JSONWizard.Meta):
 ```
 
 (I could have done this in the code generator, but that's too much effort.)
+
+Now that everything is ready, we can try parsing and re-printing everything.
+```sh
+cd src
+python3 test-parse-all.py
+```
+
+When I ran this, there were a few errors. It turned out all of them result from wrong/outdated transcriptions.
+I believe those are Kyle's transcriptions rather than official ones. I manually fixed them.
+```
+Error parsing file ../examples/liszt.json
+Failure parsing field `step` in class `DefEvent.Note.Pitch`. Expected a type Literal, got str.
+  value: 'Db'
+  error: Value not in expected Literal values
+  allowed_values: ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  json_object: '{"octave": 2, "step": "Db"}'
+
+Error parsing file ../examples/bach_minuet.json
+Failure parsing field `step` in class `DefEvent.Note.Pitch`. Expected a type Literal, got str.
+  value: 'F#'
+  error: Value not in expected Literal values
+  allowed_values: ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  json_object: '{"octave": 5, "step": "F#"}'
+
+Error parsing file ../examples/bach_minuet_rh.json
+Failure parsing field `step` in class `DefEvent.Note.Pitch`. Expected a type Literal, got str.
+  value: 'F#'
+  error: Value not in expected Literal values
+  allowed_values: ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  json_object: '{"octave": 5, "step": "F#"}'
+```

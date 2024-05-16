@@ -251,7 +251,8 @@
                                {
                                   "pitch": {
                                      "octave": 5,
-                                     "step": "F#"
+                                     "step": "F",
+                                     "alter": 1
                                   }
                                }
                             ]
@@ -501,7 +502,8 @@
                               {
                                  "pitch": {
                                     "octave": 4,
-                                    "step": "F#"
+                                    "step": "F",
+                                    "alter": 1
                                  }
                               }
                            ]
@@ -837,7 +839,8 @@
                               {
                                  "pitch": {
                                     "octave": 5,
-                                    "step": "F#"
+                                    "step": "F",
+                                    "alter": 1
                                  }
                               }
                            ]
@@ -1150,7 +1153,8 @@
                               {
                                  "pitch": {
                                     "octave": 4,
-                                    "step": "F#"
+                                    "step": "F",
+                                    "alter": 1
                                  }
                               }
                            ]
