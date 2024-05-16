@@ -4,11 +4,8 @@ from enum import Enum
 from typing import *
 from dataclass_wizard import JSONWizard, json_field  # type: ignore
 
-DefStyleClass: TypeAlias = str
-DefMeasureLocation: TypeAlias = str
-DefSmuflFont: TypeAlias = str
-DefSlurSide: TypeAlias = Literal["up", "down"]
-DefStaffNumber: TypeAlias = int
+DefVoiceName: TypeAlias = str
+DefStaffSymbol: TypeAlias = Literal["bracket", "brace", "none"]
 DefPositiveInteger: TypeAlias = int
 
 
@@ -38,75 +35,31 @@ class DefNoteValue(JSONWizard):
     dots: Optional[DefPositiveInteger] = json_field(["dots"], default=None)
 
 
+@dataclass
+class DefNoteValueQuantity(JSONWizard):
+    # required fields:
+    duration: DefNoteValue = json_field(["duration"])
+    multiple: DefPositiveInteger = json_field(["multiple"])
+    # optional fields:
+
+
+DefUpOrDown: TypeAlias = Literal["up", "down"]
+DefStaffPosition: TypeAlias = int
+DefId: TypeAlias = str
+DefColor: TypeAlias = str
 DefSlurTieEndLocation: TypeAlias = str
 DefStemDirection: TypeAlias = Literal["up", "down"]
-DefId: TypeAlias = str
-DefUpOrDown: TypeAlias = Literal["up", "down"]
+DefSlurSide: TypeAlias = Literal["up", "down"]
+DefStyleClass: TypeAlias = str
 DefOrientation: TypeAlias = str
-DefStaffPosition: TypeAlias = int
+DefStaffNumber: TypeAlias = int
+DefSmuflFont: TypeAlias = str
 
 
 @dataclass
 class DefEvent(JSONWizard):
-    @dataclass
-    class Slur(JSONWizard):
-        # required fields:
-        # optional fields:
-        end_note: Optional[DefId] = json_field(["endNote"], default=None)
-        location: Optional[DefSlurTieEndLocation] = json_field(
-            ["location"], default=None
-        )
-        start_note: Optional[DefId] = json_field(["startNote"], default=None)
-        side: Optional[DefSlurSide] = json_field(["side"], default=None)
-        side_end: Optional[DefSlurSide] = json_field(["sideEnd"], default=None)
-        target: Optional[DefId] = json_field(["target"], default=None)
-        line_type: Optional[str] = json_field(["lineType"], default=None)
-
-    @dataclass
-    class Note(JSONWizard):
-        @dataclass
-        class Tie(JSONWizard):
-            # required fields:
-            # optional fields:
-            location: Optional[DefSlurTieEndLocation] = json_field(
-                ["location"], default=None
-            )
-            target: Optional[DefId] = json_field(["target"], default=None)
-
-        @dataclass
-        class AccidentalDisplay(JSONWizard):
-            # required fields:
-            show: bool = json_field(["show"])
-            # optional fields:
-            cautionary: Optional[bool] = json_field(["cautionary"], default=None)
-            editorial: Optional[bool] = json_field(["editorial"], default=None)
-
-        @dataclass
-        class Perform(JSONWizard):
-            # required fields:
-            # optional fields:
-            pass
-
-        @dataclass
-        class Pitch(JSONWizard):
-            # required fields:
-            octave: int = json_field(["octave"])
-            step: Literal["A", "B", "C", "D", "E", "F", "G"] = json_field(["step"])
-            # optional fields:
-            alter: Optional[int] = json_field(["alter"], default=None)
-
-        # required fields:
-        pitch: Pitch = json_field(["pitch"])
-        # optional fields:
-        staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
-        perform: Optional[Perform] = json_field(["perform"], default=None)
-        accidental_display: Optional[AccidentalDisplay] = json_field(
-            ["accidentalDisplay"], default=None
-        )
-        smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
-        id: Optional[DefId] = json_field(["id"], default=None)
-        class_: Optional[DefStyleClass] = json_field(["class"], default=None)
-        tie: Optional[Tie] = json_field(["tie"], default=None)
+    class _(JSONWizard.Meta):
+        tag_key = "event"
 
     @dataclass
     class Rest(JSONWizard):
@@ -118,6 +71,36 @@ class DefEvent(JSONWizard):
 
     @dataclass
     class Markings(JSONWizard):
+        @dataclass
+        class Breath(JSONWizard):
+            # required fields:
+            # optional fields:
+            symbol: Optional[str] = json_field(["symbol"], default=None)
+
+        @dataclass
+        class Staccato(JSONWizard):
+            # required fields:
+            # optional fields:
+            pass
+
+        @dataclass
+        class Tremolo(JSONWizard):
+            # required fields:
+            marks: DefPositiveInteger = json_field(["marks"])
+            # optional fields:
+
+        @dataclass
+        class Unstress(JSONWizard):
+            # required fields:
+            # optional fields:
+            pass
+
+        @dataclass
+        class Stress(JSONWizard):
+            # required fields:
+            # optional fields:
+            pass
+
         @dataclass
         class Tenuto(JSONWizard):
             # required fields:
@@ -131,19 +114,13 @@ class DefEvent(JSONWizard):
             pass
 
         @dataclass
-        class Breath(JSONWizard):
-            # required fields:
-            # optional fields:
-            symbol: Optional[str] = json_field(["symbol"], default=None)
-
-        @dataclass
-        class Unstress(JSONWizard):
-            # required fields:
-            # optional fields:
-            pass
-
-        @dataclass
         class Accent(JSONWizard):
+            # required fields:
+            # optional fields:
+            pointing: Optional[DefUpOrDown] = json_field(["pointing"], default=None)
+
+        @dataclass
+        class StrongAccent(JSONWizard):
             # required fields:
             # optional fields:
             pointing: Optional[DefUpOrDown] = json_field(["pointing"], default=None)
@@ -160,104 +137,104 @@ class DefEvent(JSONWizard):
             # optional fields:
             pass
 
-        @dataclass
-        class Staccato(JSONWizard):
-            # required fields:
-            # optional fields:
-            pass
-
-        @dataclass
-        class Stress(JSONWizard):
-            # required fields:
-            # optional fields:
-            pass
-
-        @dataclass
-        class StrongAccent(JSONWizard):
-            # required fields:
-            # optional fields:
-            pointing: Optional[DefUpOrDown] = json_field(["pointing"], default=None)
-
-        @dataclass
-        class Tremolo(JSONWizard):
-            # required fields:
-            marks: DefPositiveInteger = json_field(["marks"])
-            # optional fields:
-
         # required fields:
         # optional fields:
-        accent: Optional[Accent] = json_field(["accent"], default=None)
-        tremolo: Optional[Tremolo] = json_field(["tremolo"], default=None)
         unstress: Optional[Unstress] = json_field(["unstress"], default=None)
-        spiccato: Optional[Spiccato] = json_field(["spiccato"], default=None)
+        staccato: Optional[Staccato] = json_field(["staccato"], default=None)
+        accent: Optional[Accent] = json_field(["accent"], default=None)
+        strong_accent: Optional[StrongAccent] = json_field(
+            ["strongAccent"], default=None
+        )
         stress: Optional[Stress] = json_field(["stress"], default=None)
         staccatissimo: Optional[Staccatissimo] = json_field(
             ["staccatissimo"], default=None
         )
-        strong_accent: Optional[StrongAccent] = json_field(
-            ["strongAccent"], default=None
-        )
-        staccato: Optional[Staccato] = json_field(["staccato"], default=None)
-        tenuto: Optional[Tenuto] = json_field(["tenuto"], default=None)
+        spiccato: Optional[Spiccato] = json_field(["spiccato"], default=None)
         soft_accent: Optional[SoftAccent] = json_field(["softAccent"], default=None)
         breath: Optional[Breath] = json_field(["breath"], default=None)
+        tremolo: Optional[Tremolo] = json_field(["tremolo"], default=None)
+        tenuto: Optional[Tenuto] = json_field(["tenuto"], default=None)
+
+    @dataclass
+    class Note(JSONWizard):
+        @dataclass
+        class Tie(JSONWizard):
+            # required fields:
+            # optional fields:
+            target: Optional[DefId] = json_field(["target"], default=None)
+            location: Optional[DefSlurTieEndLocation] = json_field(
+                ["location"], default=None
+            )
+
+        @dataclass
+        class Pitch(JSONWizard):
+            # required fields:
+            octave: int = json_field(["octave"])
+            step: Literal["A", "B", "C", "D", "E", "F", "G"] = json_field(["step"])
+            # optional fields:
+            alter: Optional[int] = json_field(["alter"], default=None)
+
+        @dataclass
+        class AccidentalDisplay(JSONWizard):
+            # required fields:
+            show: bool = json_field(["show"])
+            # optional fields:
+            editorial: Optional[bool] = json_field(["editorial"], default=None)
+            cautionary: Optional[bool] = json_field(["cautionary"], default=None)
+
+        @dataclass
+        class Perform(JSONWizard):
+            # required fields:
+            # optional fields:
+            pass
+
+        # required fields:
+        pitch: Pitch = json_field(["pitch"])
+        # optional fields:
+        tie: Optional[Tie] = json_field(["tie"], default=None)
+        id: Optional[DefId] = json_field(["id"], default=None)
+        accidental_display: Optional[AccidentalDisplay] = json_field(
+            ["accidentalDisplay"], default=None
+        )
+        perform: Optional[Perform] = json_field(["perform"], default=None)
+        class_: Optional[DefStyleClass] = json_field(["class"], default=None)
+        staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
+        smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
+
+    @dataclass
+    class Slur(JSONWizard):
+        # required fields:
+        # optional fields:
+        end_note: Optional[DefId] = json_field(["endNote"], default=None)
+        target: Optional[DefId] = json_field(["target"], default=None)
+        side_end: Optional[DefSlurSide] = json_field(["sideEnd"], default=None)
+        line_type: Optional[str] = json_field(["lineType"], default=None)
+        side: Optional[DefSlurSide] = json_field(["side"], default=None)
+        start_note: Optional[DefId] = json_field(["startNote"], default=None)
+        location: Optional[DefSlurTieEndLocation] = json_field(
+            ["location"], default=None
+        )
 
     # required fields:
     type: Literal["event"] = json_field(["type"])
     # optional fields:
-    notes: Optional[list[Note]] = json_field(["notes"], default=None)
-    id: Optional[DefId] = json_field(["id"], default=None)
-    smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
-    orient: Optional[DefOrientation] = json_field(["orient"], default=None)
-    markings: Optional[Markings] = json_field(["markings"], default=None)
-    staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
-    duration: Optional[DefNoteValue] = json_field(["duration"], default=None)
+    measure: Optional[bool] = json_field(["measure"], default=None)
     stem_direction: Optional[DefStemDirection] = json_field(
         ["stemDirection"], default=None
     )
+    id: Optional[DefId] = json_field(["id"], default=None)
+    orient: Optional[DefOrientation] = json_field(["orient"], default=None)
+    markings: Optional[Markings] = json_field(["markings"], default=None)
+    smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
     slurs: Optional[list[Slur]] = json_field(["slurs"], default=None)
-    measure: Optional[bool] = json_field(["measure"], default=None)
     rest: Optional[Rest] = json_field(["rest"], default=None)
+    notes: Optional[list[Note]] = json_field(["notes"], default=None)
+    duration: Optional[DefNoteValue] = json_field(["duration"], default=None)
+    staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
 
 
-DefStaffSymbol: TypeAlias = Literal["bracket", "brace", "none"]
 DefIntegerUnsigned: TypeAlias = int
-DefStaffLabel: TypeAlias = str
-DefMeasureNumber: TypeAlias = int
-
-
-@dataclass
-class DefNoteValueQuantity(JSONWizard):
-    # required fields:
-    duration: DefNoteValue = json_field(["duration"])
-    multiple: DefPositiveInteger = json_field(["multiple"])
-    # optional fields:
-
-
-DefStaffLabelref: TypeAlias = str
-DefVoiceName: TypeAlias = str
-
-
-@dataclass
-class DefSystemLayoutContentChoice1(JSONWizard):
-    @dataclass
-    class Source(JSONWizard):
-        # required fields:
-        part: DefId = json_field(["part"])
-        # optional fields:
-        voice: Optional[DefVoiceName] = json_field(["voice"], default=None)
-        staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
-        stem: Optional[DefStemDirection] = json_field(["stem"], default=None)
-        label: Optional[DefStaffLabel] = json_field(["label"], default=None)
-        labelref: Optional[DefStaffLabelref] = json_field(["labelref"], default=None)
-
-    # required fields:
-    sources: list[Source] = json_field(["sources"])
-    type: Literal["staff"] = json_field(["type"])
-    # optional fields:
-    symbol: Optional[DefStaffSymbol] = json_field(["symbol"], default=None)
-    label: Optional[DefStaffLabel] = json_field(["label"], default=None)
-    labelref: Optional[DefStaffLabelref] = json_field(["labelref"], default=None)
+DefTupletDisplaySetting: TypeAlias = Literal["none", "inner", "both"]
 
 
 @dataclass
@@ -272,39 +249,64 @@ class DefBeamList(JSONWizard):
     # required fields:
     events: list[DefId] = json_field(["events"])
     # optional fields:
-    inner: Optional["DefBeamList"] = json_field(["inner"], default=None)
+    inner: Optional['DefBeamList'] = json_field(["inner"], default=None)
     hooks: Optional[list[Hook]] = json_field(["hooks"], default=None)
 
 
+DefStaffLabelref: TypeAlias = str
+DefStaffLabel: TypeAlias = str
+
+DefSystemLayoutContent: TypeAlias = list[
+    Union['DefSystemLayoutContentChoice0', 'DefSystemLayoutContentChoice1']
+]
+
+@dataclass
+class DefSystemLayoutContentChoice1(JSONWizard):
+    class _(JSONWizard.Meta):
+        tag_key = "staff"
+
+    @dataclass
+    class Source(JSONWizard):
+        # required fields:
+        part: DefId = json_field(["part"])
+        # optional fields:
+        labelref: Optional[DefStaffLabelref] = json_field(["labelref"], default=None)
+        staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
+        stem: Optional[DefStemDirection] = json_field(["stem"], default=None)
+        label: Optional[DefStaffLabel] = json_field(["label"], default=None)
+        voice: Optional[DefVoiceName] = json_field(["voice"], default=None)
+
+    # required fields:
+    type: Literal["staff"] = json_field(["type"])
+    sources: list[Source] = json_field(["sources"])
+    # optional fields:
+    label: Optional[DefStaffLabel] = json_field(["label"], default=None)
+    labelref: Optional[DefStaffLabelref] = json_field(["labelref"], default=None)
+    symbol: Optional[DefStaffSymbol] = json_field(["symbol"], default=None)
+
+
 DefSmuflGlyph: TypeAlias = str
-DefTupletDisplaySetting: TypeAlias = Literal["none", "inner", "both"]
 
 
 @dataclass
 class DefSystemLayoutContentChoice0(JSONWizard):
+    class _(JSONWizard.Meta):
+        tag_key = "group"
+
     # required fields:
+    content: DefSystemLayoutContent = json_field(["content"])
     type: Literal["group"] = json_field(["type"])
-    content: "DefSystemLayoutContent" = json_field(["content"])
     # optional fields:
-    symbol: Optional[DefStaffSymbol] = json_field(["symbol"], default=None)
     label: Optional[DefStaffLabel] = json_field(["label"], default=None)
+    symbol: Optional[DefStaffSymbol] = json_field(["symbol"], default=None)
 
 
-DefSystemLayoutContent: TypeAlias = list[
-    Union[DefSystemLayoutContentChoice0, DefSystemLayoutContentChoice1]
-]
-DefColor: TypeAlias = str
+DefMeasureNumber: TypeAlias = int
+DefMeasureLocation: TypeAlias = str
 
 
 @dataclass
 class Top(JSONWizard):
-    @dataclass
-    class Layout(JSONWizard):
-        # required fields:
-        content: DefSystemLayoutContent = json_field(["content"])
-        id: DefId = json_field(["id"])
-        # optional fields:
-
     @dataclass
     class Global(JSONWizard):
         @dataclass
@@ -317,7 +319,84 @@ class Top(JSONWizard):
         @dataclass
         class Measure(JSONWizard):
             @dataclass
+            class Segno(JSONWizard):
+                # required fields:
+                location: DefMeasureLocation = json_field(["location"])
+                # optional fields:
+                glyph: Optional[DefSmuflGlyph] = json_field(["glyph"], default=None)
+                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
+                color: Optional[DefColor] = json_field(["color"], default=None)
+
+            @dataclass
+            class RepeatEnd(JSONWizard):
+                # required fields:
+                # optional fields:
+                times: Optional[int] = json_field(["times"], default=None)
+
+            @dataclass
+            class Jump(JSONWizard):
+                class _(JSONWizard.Meta):
+                    tag_key = "dsalfine"
+
+                # required fields:
+                location: DefMeasureLocation = json_field(["location"])
+                type: Literal["dsalfine", "segno"] = json_field(["type"])
+                # optional fields:
+
+            @dataclass
+            class Key(JSONWizard):
+                # required fields:
+                fifths: int = json_field(["fifths"])
+                # optional fields:
+                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
+                color: Optional[DefColor] = json_field(["color"], default=None)
+
+            @dataclass
+            class Tempo(JSONWizard):
+                # required fields:
+                bpm: int = json_field(["bpm"])
+                value: DefNoteValue = json_field(["value"])
+                # optional fields:
+                location: Optional[DefMeasureLocation] = json_field(
+                    ["location"], default=None
+                )
+
+            @dataclass
+            class Fine(JSONWizard):
+                # required fields:
+                location: DefMeasureLocation = json_field(["location"])
+                # optional fields:
+                color: Optional[DefColor] = json_field(["color"], default=None)
+                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
+
+            @dataclass
+            class Ending(JSONWizard):
+                # required fields:
+                duration: int = json_field(["duration"])
+                # optional fields:
+                color: Optional[DefColor] = json_field(["color"], default=None)
+                open: Optional[bool] = json_field(["open"], default=None)
+                numbers: Optional[list[int]] = json_field(["numbers"], default=None)
+                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
+
+            @dataclass
+            class RepeatStart(JSONWizard):
+                # required fields:
+                # optional fields:
+                pass
+
+            @dataclass
+            class Time(JSONWizard):
+                # required fields:
+                unit: Literal[1, 2, 4, 8, 16, 32, 64, 128] = json_field(["unit"])
+                count: DefPositiveInteger = json_field(["count"])
+                # optional fields:
+
+            @dataclass
             class Barline(JSONWizard):
+                class _(JSONWizard.Meta):
+                    tag_key = "regular"
+
                 # required fields:
                 type: Literal[
                     "regular",
@@ -334,98 +413,40 @@ class Top(JSONWizard):
                 ] = json_field(["type"])
                 # optional fields:
 
-            @dataclass
-            class Jump(JSONWizard):
-                # required fields:
-                type: Literal["dsalfine", "segno"] = json_field(["type"])
-                location: DefMeasureLocation = json_field(["location"])
-                # optional fields:
-
-            @dataclass
-            class RepeatStart(JSONWizard):
-                # required fields:
-                # optional fields:
-                pass
-
-            @dataclass
-            class Ending(JSONWizard):
-                # required fields:
-                duration: int = json_field(["duration"])
-                # optional fields:
-                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
-                open: Optional[bool] = json_field(["open"], default=None)
-                color: Optional[DefColor] = json_field(["color"], default=None)
-                numbers: Optional[list[int]] = json_field(["numbers"], default=None)
-
-            @dataclass
-            class Segno(JSONWizard):
-                # required fields:
-                location: DefMeasureLocation = json_field(["location"])
-                # optional fields:
-                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
-                glyph: Optional[DefSmuflGlyph] = json_field(["glyph"], default=None)
-                color: Optional[DefColor] = json_field(["color"], default=None)
-
-            @dataclass
-            class Tempo(JSONWizard):
-                # required fields:
-                value: DefNoteValue = json_field(["value"])
-                bpm: int = json_field(["bpm"])
-                # optional fields:
-                location: Optional[DefMeasureLocation] = json_field(
-                    ["location"], default=None
-                )
-
-            @dataclass
-            class RepeatEnd(JSONWizard):
-                # required fields:
-                # optional fields:
-                times: Optional[int] = json_field(["times"], default=None)
-
-            @dataclass
-            class Time(JSONWizard):
-                # required fields:
-                count: DefPositiveInteger = json_field(["count"])
-                unit: Literal[1, 2, 4, 8, 16, 32, 64, 128] = json_field(["unit"])
-                # optional fields:
-
-            @dataclass
-            class Fine(JSONWizard):
-                # required fields:
-                location: DefMeasureLocation = json_field(["location"])
-                # optional fields:
-                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
-                color: Optional[DefColor] = json_field(["color"], default=None)
-
-            @dataclass
-            class Key(JSONWizard):
-                # required fields:
-                fifths: int = json_field(["fifths"])
-                # optional fields:
-                color: Optional[DefColor] = json_field(["color"], default=None)
-                class_: Optional[DefStyleClass] = json_field(["class"], default=None)
-
             # required fields:
             # optional fields:
-            number: Optional[DefMeasureNumber] = json_field(["number"], default=None)
+            repeat_end: Optional[RepeatEnd] = json_field(["repeatEnd"], default=None)
             jump: Optional[Jump] = json_field(["jump"], default=None)
-            fine: Optional[Fine] = json_field(["fine"], default=None)
-            segno: Optional[Segno] = json_field(["segno"], default=None)
+            key: Optional[Key] = json_field(["key"], default=None)
+            ending: Optional[Ending] = json_field(["ending"], default=None)
+            time: Optional[Time] = json_field(["time"], default=None)
             barline: Optional[Barline] = json_field(["barline"], default=None)
-            tempos: Optional[list[Tempo]] = json_field(["tempos"], default=None)
+            number: Optional[DefMeasureNumber] = json_field(["number"], default=None)
+            fine: Optional[Fine] = json_field(["fine"], default=None)
+            index: Optional[DefMeasureNumber] = json_field(["index"], default=None)
             repeat_start: Optional[RepeatStart] = json_field(
                 ["repeatStart"], default=None
             )
-            repeat_end: Optional[RepeatEnd] = json_field(["repeatEnd"], default=None)
-            time: Optional[Time] = json_field(["time"], default=None)
-            index: Optional[DefMeasureNumber] = json_field(["index"], default=None)
-            key: Optional[Key] = json_field(["key"], default=None)
-            ending: Optional[Ending] = json_field(["ending"], default=None)
+            tempos: Optional[list[Tempo]] = json_field(["tempos"], default=None)
+            segno: Optional[Segno] = json_field(["segno"], default=None)
 
         # required fields:
         measures: list[Measure] = json_field(["measures"])
         # optional fields:
         styles: Optional[list[Style]] = json_field(["styles"], default=None)
+
+    @dataclass
+    class Mnx(JSONWizard):
+        # required fields:
+        version: int = json_field(["version"])
+        # optional fields:
+
+    @dataclass
+    class Layout(JSONWizard):
+        # required fields:
+        id: DefId = json_field(["id"])
+        content: DefSystemLayoutContent = json_field(["content"])
+        # optional fields:
 
     @dataclass
     class Part(JSONWizard):
@@ -435,6 +456,9 @@ class Top(JSONWizard):
             class Sequence(JSONWizard):
                 @dataclass
                 class ContentChoice5(JSONWizard):
+                    class _(JSONWizard.Meta):
+                        tag_key = "dynamic"
+
                     # required fields:
                     value: str = json_field(["value"])
                     type: Literal["dynamic"] = json_field(["type"])
@@ -442,63 +466,75 @@ class Top(JSONWizard):
                     glyph: Optional[DefSmuflGlyph] = json_field(["glyph"], default=None)
 
                 @dataclass
-                class ContentChoice1(JSONWizard):
+                class ContentChoice2(JSONWizard):
+                    class _(JSONWizard.Meta):
+                        tag_key = "tuplet"
+
                     # required fields:
-                    type: Literal["grace"] = json_field(["type"])
                     content: list[DefEvent] = json_field(["content"])
+                    inner: DefNoteValueQuantity = json_field(["inner"])
+                    outer: DefNoteValueQuantity = json_field(["outer"])
+                    type: Literal["tuplet"] = json_field(["type"])
+                    # optional fields:
+                    staff: Optional[DefStaffNumber] = json_field(
+                        ["staff"], default=None
+                    )
+                    bracket: Optional[Literal["yes", "no", "auto"]] = json_field(
+                        ["bracket"], default=None
+                    )
+                    orient: Optional[DefOrientation] = json_field(
+                        ["orient"], default=None
+                    )
+                    show_number: Optional[DefTupletDisplaySetting] = json_field(
+                        ["showNumber"], default=None
+                    )
+                    show_value: Optional[DefTupletDisplaySetting] = json_field(
+                        ["showValue"], default=None
+                    )
+
+                @dataclass
+                class ContentChoice1(JSONWizard):
+                    class _(JSONWizard.Meta):
+                        tag_key = "grace"
+
+                    # required fields:
+                    content: list[DefEvent] = json_field(["content"])
+                    type: Literal["grace"] = json_field(["type"])
                     # optional fields:
                     grace_type: Optional[
                         Literal["makeTime", "stealFollowing", "stealPrevious"]
                     ] = json_field(["graceType"], default=None)
                     slash: Optional[bool] = json_field(["slash"], default=None)
+                    color: Optional[DefColor] = json_field(["color"], default=None)
                     class_: Optional[DefStyleClass] = json_field(
                         ["class"], default=None
-                    )
-                    color: Optional[DefColor] = json_field(["color"], default=None)
-
-                @dataclass
-                class ContentChoice2(JSONWizard):
-                    # required fields:
-                    inner: DefNoteValueQuantity = json_field(["inner"])
-                    type: Literal["tuplet"] = json_field(["type"])
-                    outer: DefNoteValueQuantity = json_field(["outer"])
-                    content: list[DefEvent] = json_field(["content"])
-                    # optional fields:
-                    show_value: Optional[DefTupletDisplaySetting] = json_field(
-                        ["showValue"], default=None
-                    )
-                    show_number: Optional[DefTupletDisplaySetting] = json_field(
-                        ["showNumber"], default=None
-                    )
-                    staff: Optional[DefStaffNumber] = json_field(
-                        ["staff"], default=None
-                    )
-                    orient: Optional[DefOrientation] = json_field(
-                        ["orient"], default=None
-                    )
-                    bracket: Optional[Literal["yes", "no", "auto"]] = json_field(
-                        ["bracket"], default=None
                     )
 
                 @dataclass
                 class ContentChoice3(JSONWizard):
+                    class _(JSONWizard.Meta):
+                        tag_key = "octave-shift"
+
                     # required fields:
-                    type: Literal["octave-shift"] = json_field(["type"])
-                    end: DefMeasureLocation = json_field(["end"])
                     value: int = json_field(["value"])
+                    end: DefMeasureLocation = json_field(["end"])
+                    type: Literal["octave-shift"] = json_field(["type"])
                     # optional fields:
-                    staff: Optional[DefStaffNumber] = json_field(
-                        ["staff"], default=None
-                    )
                     orient: Optional[DefOrientation] = json_field(
                         ["orient"], default=None
+                    )
+                    staff: Optional[DefStaffNumber] = json_field(
+                        ["staff"], default=None
                     )
 
                 @dataclass
                 class ContentChoice4(JSONWizard):
+                    class _(JSONWizard.Meta):
+                        tag_key = "space"
+
                     # required fields:
-                    duration: DefNoteValueQuantity = json_field(["duration"])
                     type: Literal["space"] = json_field(["type"])
+                    duration: DefNoteValueQuantity = json_field(["duration"])
                     # optional fields:
 
                 # required fields:
@@ -513,9 +549,9 @@ class Top(JSONWizard):
                     ]
                 ] = json_field(["content"])
                 # optional fields:
-                voice: Optional[DefVoiceName] = json_field(["voice"], default=None)
                 staff: Optional[DefStaffNumber] = json_field(["staff"], default=None)
                 orient: Optional[DefOrientation] = json_field(["orient"], default=None)
+                voice: Optional[DefVoiceName] = json_field(["voice"], default=None)
 
             @dataclass
             class Clef(JSONWizard):
@@ -525,12 +561,12 @@ class Top(JSONWizard):
                     sign: Literal["C", "F", "G"] = json_field(["sign"])
                     staff_position: DefStaffPosition = json_field(["staffPosition"])
                     # optional fields:
+                    glyph: Optional[DefSmuflGlyph] = json_field(["glyph"], default=None)
+                    octave: Optional[int] = json_field(["octave"], default=None)
+                    color: Optional[str] = json_field(["color"], default=None)
                     class_: Optional[DefStyleClass] = json_field(
                         ["class"], default=None
                     )
-                    color: Optional[str] = json_field(["color"], default=None)
-                    glyph: Optional[DefSmuflGlyph] = json_field(["glyph"], default=None)
-                    octave: Optional[int] = json_field(["octave"], default=None)
 
                 @dataclass
                 class Position(JSONWizard):
@@ -554,29 +590,15 @@ class Top(JSONWizard):
 
         # required fields:
         # optional fields:
+        staves: Optional[int] = json_field(["staves"], default=None)
+        name: Optional[str] = json_field(["name"], default=None)
         short_name: Optional[str] = json_field(["shortName"], default=None)
         id: Optional[DefId] = json_field(["id"], default=None)
-        smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
         measures: Optional[list[Measure]] = json_field(["measures"], default=None)
-        name: Optional[str] = json_field(["name"], default=None)
-        staves: Optional[int] = json_field(["staves"], default=None)
-
-    @dataclass
-    class Mnx(JSONWizard):
-        # required fields:
-        version: int = json_field(["version"])
-        # optional fields:
+        smufl_font: Optional[DefSmuflFont] = json_field(["smuflFont"], default=None)
 
     @dataclass
     class Score(JSONWizard):
-        @dataclass
-        class MultimeasureRest(JSONWizard):
-            # required fields:
-            start: DefMeasureNumber = json_field(["start"])
-            duration: int = json_field(["duration"])
-            # optional fields:
-            label: Optional[str] = json_field(["label"], default=None)
-
         @dataclass
         class Page(JSONWizard):
             @dataclass
@@ -584,8 +606,8 @@ class Top(JSONWizard):
                 @dataclass
                 class LayoutChange(JSONWizard):
                     # required fields:
-                    layout: DefId = json_field(["layout"])
                     location: DefMeasureLocation = json_field(["location"])
+                    layout: DefId = json_field(["layout"])
                     # optional fields:
 
                 # required fields:
@@ -601,6 +623,14 @@ class Top(JSONWizard):
             # optional fields:
             layout: Optional[DefId] = json_field(["layout"], default=None)
 
+        @dataclass
+        class MultimeasureRest(JSONWizard):
+            # required fields:
+            duration: int = json_field(["duration"])
+            start: DefMeasureNumber = json_field(["start"])
+            # optional fields:
+            label: Optional[str] = json_field(["label"], default=None)
+
         # required fields:
         name: str = json_field(["name"])
         # optional fields:
@@ -609,11 +639,15 @@ class Top(JSONWizard):
             ["multimeasureRests"], default=None
         )
         pages: Optional[list[Page]] = json_field(["pages"], default=None)
+      
+    class _(JSONWizard.Meta):
+        tag_key = "type"
+        auto_assign_tags = True
 
     # required fields:
-    parts: list[Part] = json_field(["parts"])
-    mnx: Mnx = json_field(["mnx"])
     global_: Global = json_field(["global"])
+    mnx: Mnx = json_field(["mnx"])
+    parts: list[Part] = json_field(["parts"])
     # optional fields:
-    layouts: Optional[list[Layout]] = json_field(["layouts"], default=None)
     scores: Optional[list[Score]] = json_field(["scores"], default=None)
+    layouts: Optional[list[Layout]] = json_field(["layouts"], default=None)

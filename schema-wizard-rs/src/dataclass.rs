@@ -92,9 +92,16 @@ pub struct Enum<T> {
 }
 impl<T> Eq for Enum<T> where T : Eq {}
 
+#[derive(Debug, PartialEq, Default)]
+pub struct Meta {
+    tag: Option<String>
+}
+impl Eq for Meta {}
+
 #[derive(Debug, PartialEq)]
 pub struct Dataclass {
     name: String,
+    json_meta: Meta,
     subclasses: HashMap<String, Dataclass>,
     fields: HashMap<String, Field>
 }
@@ -301,10 +308,18 @@ pub fn parse_dataclass(name: &str, typ: &schema::Type) -> (HashMap<String, Datac
                     all_defs.extend(defs);
                     fields.insert(k.to_string(), Field::new(k, typ, sch.required.contains(k)));
                 }
+                let mut meta = Meta::default();
+                if let Some(field) = fields.get("type") {
+                    if let Type::StringLiteral(ref s) = field.value_type {
+                        let n = s.get(0).unwrap();
+                        meta.tag = Some(n.clone())
+                    }
+                }
                 let c = Dataclass {
                     name: make_class_name(name),
                     subclasses: all_defs,
                     fields,
+                    json_meta: meta
                 };
                 (HashMap::from([(make_class_name(name), c)]), Type::TypeName(make_class_name(name)))
             },
@@ -368,6 +383,13 @@ impl SchemaPrinter {
         self.add_line(format!("@dataclass"));
         self.add_line(format!("class {}(JSONWizard):", dataclass.name));
         self.level += 1;
+
+        if let Some(ref s) = dataclass.json_meta.tag {
+            self.add_line(format!("class _(JSONWizard.Meta):"));
+            self.level += 1;
+            self.add_line(format!("tag_key = '{}'", s));
+            self.level -= 1;
+        }
 
         for (_name, def) in dataclass.subclasses.iter() {
             self.run_dataclass(def);
@@ -439,6 +461,7 @@ mod test {
         assert_eq!(defs, HashMap::from([(
             "Top".into(),
             Dataclass {
+                json_meta: Meta::default(),
                 name: "Top".into(),
                 subclasses: HashMap::new(),
                 fields: HashMap::from([(
@@ -548,6 +571,7 @@ mod test {
         let scm: schema::Type = serde_json::from_value(input).unwrap();
         let (defs, typ) = parse_dataclass("top", &scm);
         let inner_dataclass = Dataclass {
+            json_meta: Meta::default(),
             name: "Thing".into(),
             subclasses: HashMap::from([]),
             fields: HashMap::from([
@@ -556,6 +580,7 @@ mod test {
             ])
         };
         assert_eq!(defs, HashMap::from([("Top".into(), Dataclass {
+            json_meta: Meta::default(),
             name: "Top".into(),
             subclasses: HashMap::from([("Thing".into(), inner_dataclass)]),
             fields: HashMap::from([
