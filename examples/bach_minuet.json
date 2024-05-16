@@ -251,8 +251,7 @@
                                {
                                   "pitch": {
                                      "octave": 5,
-                                     "step": "F",
-                                     "alter": 1
+                                     "step": "F#"
                                   }
                                }
                             ]
@@ -502,8 +501,7 @@
                               {
                                  "pitch": {
                                     "octave": 4,
-                                    "step": "F",
-                                    "alter": 1
+                                    "step": "F#"
                                  }
                               }
                            ]
@@ -839,8 +837,7 @@
                               {
                                  "pitch": {
                                     "octave": 5,
-                                    "step": "F",
-                                    "alter": 1
+                                    "step": "F#"
                                  }
                               }
                            ]
@@ -1153,8 +1150,7 @@
                               {
                                  "pitch": {
                                     "octave": 4,
-                                    "step": "F",
-                                    "alter": 1
+                                    "step": "F#"
                                  }
                               }
                            ]
@@ -1588,7 +1584,7 @@
                               "base": "quarter"
                            },
                            "notes": [
-                            {"pitch": {"step": "F", "alter": 1, "octave": 3}}
+                            {"pitch": {"step": "F#", "octave": 3}}
                            ]
                        }
                       ]
