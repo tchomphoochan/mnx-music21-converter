@@ -1,7 +1,7 @@
 from typing import Optional
 
 import music21
-from music21 import converter, note, stream, meter, duration, chord, pitch
+from music21 import converter, note, stream, meter, duration, chord, pitch, key
 import json
 import mnx
 
@@ -22,7 +22,7 @@ class MNXConverter(converter.subConverters.SubConverter):
         self.globalInfo = top.global_
         self.idMappings = {}
 
-        # Walk through JSON parts
+        # Walk through the parts to populate notes in measures in voices in parts
         sc = stream.Score()
         for inPart in top.parts:
             outPart = self.parsePart(inPart)
@@ -38,22 +38,54 @@ class MNXConverter(converter.subConverters.SubConverter):
         outPart.partAbbreviation = inPart.short_name
         self.setId(outPart, inPart.id)
 
-        for inMeas in inPart.measures:
-            outMeas = self.parseMeasure(inMeas)
+        assert inPart.measures is not None, "parts[_].measures is not required but that does not make sense semantically"
+        assert self.globalInfo.measures is not None, "global.measures is not required but that does not make sense semantically"
+        assert len(inPart.measures) == len(self.globalInfo.measures)
+
+        for inMeas, globalMeas in zip(inPart.measures, self.globalInfo.measures):
+            outMeas = self.parseMeasure(inMeas, globalMeas)
             outPart.append(outMeas)
 
         # TODO: handle .staves
         # TODO: handle .smufl_font
         return outPart
 
-    def parseMeasure(self, inMeas: mnx.Top.Part.Measure) -> stream.Measure:
+    def parseMeasure(self, inMeas: mnx.Top.Part.Measure, globalMeas: mnx.Top.Global.Measure) -> stream.Measure:
         outMeas = stream.Measure()
+
+        if globalMeas.number is not None:
+            outMeas.number = globalMeas.number
+
+        if globalMeas.key is not None:
+            k = key.KeySignature(globalMeas.key.fifths)
+            # TODO: handle class_
+            # TODO: handle color
+            outMeas.append(k)
+
+        if globalMeas.time is not None:
+            t = meter.TimeSignature(f'{globalMeas.time.count}/{globalMeas.time.unit}')
+            outMeas.append(t)
+
+        # TODO: handle globalMeas.jump
+        # TODO: handle globalMeas.fine
+        # TODO: handle globalMeas.tempos
+        # TODO: handle globalMeas.ending
+        # TODO: handle globalMeas.barline
+        # TODO: handle globalMeas.index
+        # TODO: handle globalMeas.repeat_start
+        # TODO: handle globalMeas.time
+        # TODO: handle globalMeas.key
+        # TODO: handle globalMeas.segno
+        # TODO: handle globalMeas.repeat_end
+
         for seq in inMeas.sequences:
             v = self.parseSequence(seq)
             outMeas.append(v)
 
-        # TODO: handle .beams
-        # TODO: handle .clefs
+        # TODO: handle inMeas.beams
+        # TODO: handle inMeas.clefs
+
+        # If the measure has only one voice, there is no need to have a stream.Voice object.
         return outMeas.flattenUnnecessaryVoices()
 
     def parseSequence(self, inSeq: mnx.Top.Part.Measure.Sequence) -> stream.Voice:
@@ -156,16 +188,15 @@ class MNXConverter(converter.subConverters.SubConverter):
         # handle the pitch
         outNote.pitch = pitch.Pitch(step=inNote.pitch.step,
                                     octave=inNote.pitch.octave)
+
         if inNote.pitch.alter is not None:
-            outNote.pitch.accidental = pitch.Accidental()
-            outNote.pitch.accidental.alter = inNote.pitch.alter
-            # MNX specification specifies exactly when to display accidentals in front of notes
-            # so by default all accidentals are set to 'never'.
-            outNote.pitch.accidental.displayType = 'never'
+            outNote.pitch.accidental = pitch.Accidental(inNote.pitch.alter)
 
         # handle the marking for accidental display
         if inNote.accidental_display is not None:
             if inNote.accidental_display.show:
+                if outNote.pitch.accidental is None:
+                    outNote.pitch.accidental = pitch.Accidental(0)
                 outNote.pitch.accidental.displayType = 'always'
 
         self.setId(outNote, inNote.id)
@@ -193,4 +224,4 @@ with open('../examples/bach_minuet.json', 'r') as f:
     s = f.read()
 sc = converter.parse(s, format="mnx")
 sc.show('t')
-sc.show('musicxml.pdf')
+sc.show('musicxml.pdf', makeNotation=False)
