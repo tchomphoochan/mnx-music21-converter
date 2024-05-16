@@ -34,7 +34,7 @@ fn main() {
     infile.read_to_string(&mut input).unwrap();
 
     let top: schema::TopLevel = serde_json::from_str(&input).unwrap();
-    let (defs, _typ) = dataclass::parse("top", &top.content);
-    let s = dataclass::DataclassPrinter::print(defs.get("Top").unwrap());
+    let (defs, dc) = dataclass::parse_top("top", &top);
+    let s = dataclass::SchemaPrinter::print(&defs, &dc);
     write!(outfile, "{}", s).unwrap();
 }

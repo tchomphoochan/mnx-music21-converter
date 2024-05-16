@@ -1,10 +1,89 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use convert_case::{Case, Casing};
 
-use crate::schema;
-use crate::schema::Schema;
+use crate::schema::{self, Schema};
+
+#[derive(Debug, PartialEq, Eq)]
+enum Def {
+    Alias(Type),
+    Dataclass(Dataclass)
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Defs {
+    definitions: HashMap<String, Def>,
+    dependencies: HashMap<String, HashSet<String>>, // deps[x] = {y | y must execute before x}
+}
+impl Eq for Defs {}
+impl Defs {
+    fn new() -> Self {
+        Defs {
+            definitions: HashMap::new(),
+            dependencies: HashMap::new()
+        }
+    }
+    fn add_definition(&mut self, name: &str, def: Def) {
+        let name = make_class_name(name);
+        let refs = match &def {
+            Def::Alias(typ) => typ.get_refs(),
+            Def::Dataclass(dc) => dc.get_refs()
+        };
+        self.definitions.insert(name.clone(), def);
+        self.dependencies.insert(name.clone(), refs);
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum SortStatus {
+    Unvisited,
+    Pending,
+    Done
+}
+struct DefsSorter<'a> {
+    defs: &'a Defs,
+    statuses: HashMap<String, SortStatus>,
+    output: Vec<String>,
+    has_cycle: bool
+}
+impl<'a> DefsSorter<'a> {
+    fn compute_order(defs: &'a Defs) -> Vec<String> {
+        let mut sorter = DefsSorter { defs: defs, statuses: HashMap::new(), output: Vec::new(), has_cycle: false };
+
+        // initialize
+        for name in defs.definitions.keys() {
+            sorter.statuses.insert(name.to_string(), SortStatus::Unvisited);
+        }
+
+        // visit each unvisited node to populate output
+        for name in defs.dependencies.keys() {
+            match *sorter.statuses.get(name).unwrap() {
+                SortStatus::Unvisited => sorter.visit(name),
+                SortStatus::Pending => panic!("should not be pending!"),
+                SortStatus::Done => (),
+            }
+        }
+        
+        // return the output
+        sorter.output
+    }
+    fn visit(&mut self, name: &str) {
+        match self.statuses.get(name).unwrap() {
+            SortStatus::Unvisited => {
+                *self.statuses.get_mut(name).unwrap() = SortStatus::Pending;
+                let prereqs = self.defs.dependencies.get(name).unwrap().clone();
+                for prereq in prereqs.iter() {
+                    self.visit(prereq)
+                }
+                *self.statuses.get_mut(name).unwrap() = SortStatus::Done;
+                self.output.push(name.into())
+            },
+            SortStatus::Pending => { self.has_cycle = true },
+            SortStatus::Done => ()
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Enum<T> {
@@ -16,11 +95,26 @@ impl<T> Eq for Enum<T> where T : Eq {}
 #[derive(Debug, PartialEq)]
 pub struct Dataclass {
     name: String,
-    definitions: HashMap<String, Dataclass>,
-    dependencies: Vec<(String, String)>, // (x,y) means x depends on y
+    subclasses: HashMap<String, Dataclass>,
     fields: HashMap<String, Field>
 }
 impl Eq for Dataclass {}
+
+impl Dataclass {
+    fn get_refs(&self) -> HashSet<String> {
+        let mut refs = HashSet::<String>::new();
+        self.populate_refs(&mut refs);
+        refs
+    }
+    fn populate_refs(&self, refs: &mut HashSet<String>) {
+        for (_, subclass) in self.subclasses.iter() {
+            subclass.populate_refs(refs)
+        }
+        for (_, field) in self.fields.iter() {
+            field.value_type.populate_refs(refs)
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Field {
@@ -40,7 +134,7 @@ impl fmt::Display for Field {
         if self.required {
             write!(f, "{}: {} = json_field(['{}'])", self.key, self.value_type.get_type_name(), self.json_key)
         } else {
-            write!(f, "{}: {} = json_field(['{}'], default_factory={})", self.key, self.value_type.get_type_name(), self.json_key, self.value_type.get_initializer())
+            write!(f, "{}: Optional[{}] = json_field(['{}'], default=None)", self.key, self.value_type.get_type_name(), self.json_key)
         }
     }
 }
@@ -86,17 +180,27 @@ impl Type {
             }
         }
     }
-    fn get_initializer(&self) -> String {
+    fn get_refs(&self) -> HashSet<String> {
+        let mut refs = HashSet::new();
+        self.populate_refs(&mut refs);
+        refs
+    }
+    fn populate_refs(&self, refs: &mut HashSet<String>) {
         match self {
-            Type::Integer => "int".into(),
-            Type::String => "str".into(),
-            Type::Boolean => "bool".into(),
-            Type::TypeName(x) => x.into(),
-            Type::List(_) => "list".into(),
-            Type::Union(_) => "illegal".into(),
-            Type::IntegerLiteral(_) => "int".into(),
-            Type::StringLiteral(_) => "str".into(),
-            Type::BooleanLiteral(_) => "bool".into()
+            Type::Integer => (),
+            Type::IntegerLiteral(_) => (),
+            Type::String => (),
+            Type::StringLiteral(_) => (),
+            Type::Boolean => (),
+            Type::BooleanLiteral(_) => (),
+            Type::TypeName(name) => {
+                let is_def = make_class_name(&name).starts_with("Def");
+                if is_def {
+                    refs.insert(name.into());
+                }
+            },
+            Type::List(t) => t.populate_refs(refs),
+            Type::Union(ts) => ts.iter().for_each(|t| t.populate_refs(refs)),
         }
     }
 }
@@ -115,15 +219,42 @@ fn make_class_name(name: &str) -> String {
 
 fn resolve_ref(name: &str) -> String {
     let parts: Vec<&str> = name.split("/").collect();
-    let ret = parts.get(2).unwrap().to_string();
+    let mut ret = parts.get(2).unwrap().to_string();
+    ret.insert_str(0, "def-");
     ret
 }
 
-pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Type) {
+pub fn parse_top(name: &str, top: &schema::TopLevel) -> (Defs, Dataclass) {
+    // initialize the definitions-dependencies manager
+    let mut definitions = Defs::new();
+
+    // for each def in the schema
+    for (name, scm) in top.defs.iter() {
+        // parse the def
+        let mut name = name.to_string();
+        name.insert_str(0, "def-");
+        let (defs, typ) = parse_dataclass(&name, scm);
+        definitions.add_definition(&name, Def::Alias(typ));
+        // if the def is an object (i.e. a class definition):
+        for (name, def) in defs.into_iter() {
+            definitions.add_definition(&name, Def::Dataclass(def));
+        }
+    }
+
+    // now parse the main schema content
+    let (defs, _typ) = parse_dataclass(name, &top.content);
+    assert!(defs.len() == 1);
+    let mut defs: Vec<Dataclass> = defs.into_iter().map(|(_k,v)| v).collect();
+    let dc = defs.pop().unwrap();
+
+    (definitions, dc)
+}
+
+pub fn parse_dataclass(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Type) {
     match typ {
         schema::Type::Schema(sch) => match sch {
             Schema::Array(sch) => {
-                let (defs, typ) = parse(&singularize_name(&name), &*sch.items);
+                let (defs, typ) = parse_dataclass(&singularize_name(&name), &*sch.items);
                 (defs, Type::List(Box::new(typ)))
             },
             Schema::Integer(sch) => match sch.choices() {
@@ -173,14 +304,13 @@ pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Typ
                 let mut all_defs = HashMap::<String, Dataclass>::new();
                 let mut fields = HashMap::<String, Field>::new();
                 for (k, v) in sch.properties.iter() {
-                    let (defs, typ) = parse(k, v);
+                    let (defs, typ) = parse_dataclass(k, v);
                     all_defs.extend(defs);
                     fields.insert(k.to_string(), Field::new(k, typ, sch.required.contains(k)));
                 }
                 let c = Dataclass {
                     name: make_class_name(name),
-                    definitions: all_defs,
-                    dependencies: vec![],
+                    subclasses: all_defs,
                     fields,
                 };
                 (HashMap::from([(make_class_name(name), c)]), Type::TypeName(make_class_name(name)))
@@ -192,7 +322,7 @@ pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Typ
             let mut i = 0;
             for v in choices.iter() {
                 let k = format!("{}_choice_{}", name, i);
-                let (defs, typ) = parse(&k, v);
+                let (defs, typ) = parse_dataclass(&k, v);
                 all_defs.extend(defs);
                 types.push(typ);
                 i += 1
@@ -203,30 +333,51 @@ pub fn parse(name: &str, typ: &schema::Type) -> (HashMap<String, Dataclass>, Typ
     }
 }
 
-pub struct DataclassPrinter {
+pub struct SchemaPrinter {
     lines: Vec<String>,
     level: usize,
 }
 
-impl DataclassPrinter {
-    pub fn print(dataclass: &Dataclass) -> String {
-        let mut printer = DataclassPrinter { lines: vec![], level: 0 };
+impl SchemaPrinter {
+    pub fn print(defs: &Defs, main: &Dataclass) -> String {
+        let mut printer = SchemaPrinter { lines: vec![], level: 0 };
+
+        // header
         printer.add_line("from dataclasses import dataclass, field".into());
         printer.add_line("from datetime import date".into());
         printer.add_line("from enum import Enum".into());
         printer.add_line("from typing import *".into());
         printer.add_line("from dataclass_wizard import JSONWizard, json_field  # mypy: ignore".into());
-        printer.run(dataclass);
+
+        // sort the definitions
+        let order = DefsSorter::compute_order(defs);
+
+        // print the definitions in order
+        for name in order.iter() {
+            let def = defs.definitions.get(name).unwrap();
+            printer.run_def(name, def);
+        }
+
+        // print the main schema
+        printer.run_dataclass(main);
+
+        // return all lines
         printer.lines.join("\n")
     }
-    fn run(&mut self, dataclass: &Dataclass) {
+    fn run_def(&mut self, name: &str, def: &Def) {
+        match def {
+            Def::Alias(typ) => self.add_line(format!("{}: TypeAlias = {}", name, typ.get_type_name())),
+            Def::Dataclass(dc) => self.run_dataclass(dc),
+        }
+    }
+
+    fn run_dataclass(&mut self, dataclass: &Dataclass) {
         self.add_line(format!("@dataclass"));
         self.add_line(format!("class {}(JSONWizard):", dataclass.name));
         self.level += 1;
 
-        // TODO: reorder by topological sorting
-        for (_name, def) in dataclass.definitions.iter() {
-            self.run(def);
+        for (_name, def) in dataclass.subclasses.iter() {
+            self.run_dataclass(def);
         }
 
         // must re-order so required fields come before not-required fields
@@ -243,7 +394,7 @@ impl DataclassPrinter {
             }
         }
 
-        if dataclass.definitions.is_empty() && dataclass.fields.is_empty() {
+        if dataclass.subclasses.is_empty() && dataclass.fields.is_empty() {
             self.add_line(format!("pass"))
         }
 
@@ -269,7 +420,7 @@ mod test {
             }
         );
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
         assert_eq!(typ, Type::Integer);
     }
@@ -291,13 +442,12 @@ mod test {
             }
         );
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([(
             "Top".into(),
             Dataclass {
                 name: "Top".into(),
-                definitions: HashMap::new(),
-                dependencies: vec![],
+                subclasses: HashMap::new(),
                 fields: HashMap::from([(
                     "hello".to_string(),
                     Field::new("hello", Type::Integer, true)
@@ -321,7 +471,7 @@ mod test {
         );
 
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
         assert_eq!(typ, Type::Union(vec![
             Type::StringLiteral("hi".into()),
@@ -340,7 +490,7 @@ mod test {
         );
 
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
         assert_eq!(typ, Type::StringLiteral("hewo".into()));
     }
@@ -356,7 +506,7 @@ mod test {
             }
         );
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         assert_eq!(defs, HashMap::from([]));
         assert_eq!(typ, Type::List(Box::new(Type::String)));
     }
@@ -403,11 +553,10 @@ mod test {
             }
         );
         let scm: schema::Type = serde_json::from_value(input).unwrap();
-        let (defs, typ) = parse("top", &scm);
+        let (defs, typ) = parse_dataclass("top", &scm);
         let inner_dataclass = Dataclass {
             name: "Thing".into(),
-            definitions: HashMap::from([]),
-            dependencies: vec![],
+            subclasses: HashMap::from([]),
             fields: HashMap::from([
                 ("word".into(), Field::new("word", Type::String, true)),
                 ("num".into(), Field::new("num", Type::Integer, false))
@@ -415,8 +564,7 @@ mod test {
         };
         assert_eq!(defs, HashMap::from([("Top".into(), Dataclass {
             name: "Top".into(),
-            definitions: HashMap::from([("Thing".into(), inner_dataclass)]),
-            dependencies: vec![],
+            subclasses: HashMap::from([("Thing".into(), inner_dataclass)]),
             fields: HashMap::from([
                 ("things".into(), Field::new("things", Type::List(Box::new(Type::TypeName("Thing".into()))), false)),
                 ("tag".into(), Field::new("tag", Type::Union(vec![

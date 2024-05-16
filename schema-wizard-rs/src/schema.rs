@@ -7,7 +7,7 @@ pub struct TopLevel {
     pub title: String,
 
     #[serde(default, rename = "$defs")]
-    pub defs: HashMap<String, Schema>,
+    pub defs: HashMap<String, Type>,
 
     #[serde(rename = "$id")]
     pub id: String,
