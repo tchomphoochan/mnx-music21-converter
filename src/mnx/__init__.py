@@ -45,15 +45,14 @@ class DefSystemLayoutContentChoice0(JSONWizard):
 
     # required fields:
     type: Literal["group"] = json_field(["type"])
-    content: "DefSystemLayoutContent" = json_field(["content"])
+    content: list = json_field(["content"])
     # optional fields:
     label: Optional[DefStaffLabel] = json_field(["label"], default=None)
     symbol: Optional[DefStaffSymbol] = json_field(["symbol"], default=None)
 
 
 DefSystemLayoutContent: TypeAlias = list[
-    # Union[DefSystemLayoutContentChoice0, DefSystemLayoutContentChoice1]
-    dict
+    Union[DefSystemLayoutContentChoice0, DefSystemLayoutContentChoice1]
 ]
 DefColor: TypeAlias = str
 DefStaffPosition: TypeAlias = int

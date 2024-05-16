@@ -163,12 +163,13 @@ I changed the definition to just `DefBeamList: TypeAlias = list`.
 (Needed to do this because it turns out `TypeAlias` interacts weirdly with the dataclass wizard.
 Luckily this is the only problematic place.)
 
-On line 55 of `src/mnx/__init__.py`, for `DefSystemLayoutContent`, I replaced the references
-with just an untyped `dict`, since those aren't very important. Line 48 also needs quotation marks.
-
 The other error on line 292 is much trickier. Beams are important to this project, so we can't simply ignore them.
 I decided to replace the recursive reference with an untyped `dict` and make sure that wherever I reference `DefBeamList.inner`,
 I don't forget to manually run the parser for the inner dictionary.
+
+Similarly, on line 48 of `src/mnx/__init__.py`, for `DefSystemLayoutContentChoice0`, I replaced the reference
+with `DefSystemLayoutContent` to just an untyped `list`.
+
 
 Finally, one more runtime error: `dataclass_wizard` is actually pretty bad at dealing with parsing unions.
 It looks for a very specific pattern indicating the use of discriminated unions.
