@@ -25,6 +25,10 @@ class MNXConverter(converter.subConverters.SubConverter):
     def addTask(self, task: Deferred):
         self.tasks.append(task)
 
+    def runAllTasks(self, obj: music21.Music21Object):
+        for ident, obj in self.idMappings.items():
+            self.runTasks(obj)
+
     def runTasks(self, obj: music21.Music21Object):
         doneIndices = [i for i, task in enumerate(self.tasks) if task(obj)]
         for idx in reversed(doneIndices):
@@ -164,7 +168,7 @@ class MNXConverter(converter.subConverters.SubConverter):
         return outVoice
 
     def parseEvent(self, inEvent: mnx.DefEvent) -> note.GeneralNote:
-        assert inEvent.type == "event"
+        assert inEvent.type == "event", "Wrong event type"
         assert inEvent.duration is not None, "An event should have a duration specified"
         dur = self.parseNoteValue(inEvent.duration)
         outNote: note.GeneralNote|None = None
@@ -204,7 +208,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             self.setId(r, inEvent.id)
             outNote = r
 
-        assert outNote is not None
+        assert outNote is not None, "outNote should not be None"
 
         if inEvent.markings is not None:
             # Interestingly enough, MNX accent has up/down pointing designation for accents
@@ -262,7 +266,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             # We add slur as soon as the target note is found.
             if end.id != slur.target:
                 return False
-            assert isinstance(end, note.GeneralNote)
+            assert isinstance(end, note.GeneralNote), "Target note needs to actually be a note"
 
             # Need to make a separate copy because
             # otherwise start.sites contains the slur itself.
@@ -382,7 +386,7 @@ class MNXConverter(converter.subConverters.SubConverter):
         def task(end: music21.Music21Object):
             if end.id != tie_.target:
                 return False
-            assert isinstance(end, note.GeneralNote)
+            assert isinstance(end, note.GeneralNote), "Target note needs to actually be a note"
 
             if end.tie is not None and end.tie.type != 'stop':
                 end.tie = tie.Tie('continue')
@@ -397,18 +401,18 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         # Add full beams
         assert len(inBeam.events), "A beam must consist of at least one events; use a hook instead."
-        for i, eventId in enumerate(inBeam.events):
-            even = self.lookup(eventId)
-            assert isinstance(even, note.NotRest)
+        eventIds = [eventId for eventId in inBeam.events if isinstance(self.lookup(eventId), note.NotRest)]
+        for i, eventId in enumerate(eventIds):
+            event = cast(note.NotRest, self.lookup(eventId))
 
             beamType: str
             if i == 0:
                 beamType = 'start'
-            elif i == len(inBeam.events)-1:
+            elif i == len(eventIds)-1:
                 beamType = 'stop'
             else:
                 beamType = 'continue'
-            even.beams.append(beam.Beam(type=beamType, number=level))
+            event.beams.append(beam.Beam(type=beamType, number=level))
 
         # Add inner beams
         if inBeam.inner is not None:
