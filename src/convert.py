@@ -1,6 +1,7 @@
-from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef
+from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat
+
 import music21
-from typing import Optional, cast
+from typing import Optional, cast, Union, Tuple, Callable
 import mnx
 
 
@@ -13,6 +14,10 @@ class MNXConverter(converter.subConverters.SubConverter):
 
     globalInfo: mnx.Top.Global
 
+    # Things that require future data to be executed.
+    # I defer all of them to the very end.
+    tasks: list[Callable[[], None]]
+
     def parseData(self, strData: str, number: int | None = None) -> None:
         # Parse JSON
         top = mnx.Top.from_json(strData)
@@ -21,12 +26,17 @@ class MNXConverter(converter.subConverters.SubConverter):
         # Initialize stuff
         self.globalInfo = top.global_
         self.idMappings = {}
+        self.tasks = []
 
         # Walk through the parts to populate notes in measures in voices in parts
         sc = stream.Score()
         for inPart in top.parts:
             outPart = self.parsePart(inPart)
             sc.append(outPart)
+
+        # Do some final deferred tasks.
+        for task in self.tasks:
+            task()
 
         # Done. Put the result in self.stream.
         self.stream = sc
@@ -66,17 +76,39 @@ class MNXConverter(converter.subConverters.SubConverter):
             t = meter.TimeSignature(f'{globalMeas.time.count}/{globalMeas.time.unit}')
             outMeas.append(t)
 
-        # TODO: handle globalMeas.jump
-        # TODO: handle globalMeas.fine
-        # TODO: handle globalMeas.tempos
-        # TODO: handle globalMeas.ending
-        # TODO: handle globalMeas.barline
+        # I gave up on implementing these jumps.
+        # See MNXConverter.parseMeasureLocation for an explanation.
+        assert globalMeas.jump is None, "Jump is not supported."
+        assert globalMeas.fine is None, "Fine is not supported."
+        assert globalMeas.segno is None, "Segno is not supported."
+
+        if globalMeas.tempos is not None:
+            for inTempo in globalMeas.tempos:
+                # Here, it is not clear what inTempo.location is supposed to represent.
+                # I think they meant fraction rather than measure-location?
+                assert inTempo.location is not None, "Tempo location not supported"
+                outTempo = tempo.MetronomeMark(
+                    number=inTempo.bpm,
+                    referent=self.parseNoteValue(inTempo.value),
+                    # offset=self.parseMeasureLocation(inTempo.location)[1],
+                    # offset=self.parseFraction(inTempo.location),
+                )
+                outMeas.append(outTempo)
+
         # TODO: handle globalMeas.index
-        # TODO: handle globalMeas.repeat_start
-        # TODO: handle globalMeas.time
-        # TODO: handle globalMeas.key
-        # TODO: handle globalMeas.segno
-        # TODO: handle globalMeas.repeat_end
+        # I could never figure out what this was supposed to represent.
+
+        # Barline stuff
+        if globalMeas.repeat_start is not None:
+            rp = bar.Repeat(direction="start")
+            outMeas.leftBarline = rp
+        if globalMeas.repeat_end is not None:
+            rp = bar.Repeat(direction="end")
+            rp.times = globalMeas.repeat_end.times
+            outMeas.rightBarline = rp
+        if globalMeas.barline is not None:
+            bl = bar.Barline(type=globalMeas.barline.type)
+            outMeas.rightBarline = bl
 
         # Parse each voice within the measure
         for seq in inMeas.sequences:
@@ -95,6 +127,14 @@ class MNXConverter(converter.subConverters.SubConverter):
             for inClef in inMeas.clefs:
                 outClef = self.parseClef(inClef)
                 outMeas.insert(outClef)
+
+        # TODO: handle globalMeas.ending
+        # if globalMeas.ending is not None:
+        #     def addEnding():
+        #         numbers = globalMeas.ending.numbers
+        #         assert numbers is not None, "It does not make sense for there to be no numbers for endings."
+        #         repeat.insertRepeatEnding(self.stream, outMeas.number, outMeas.number+globalMeas.ending.duration-1, numbers)
+        #     self.tasks.append(addEnding)
 
         # If the measure has only one voice, there is no need to have a stream.Voice object.
         return outMeas.flattenUnnecessaryVoices()
@@ -123,6 +163,9 @@ class MNXConverter(converter.subConverters.SubConverter):
         assert inEvent.type == "event"
         assert inEvent.duration is not None, "An event should have a duration specified"
         dur = self.parseNoteValue(inEvent.duration)
+        outNote: note.GeneralNote|None = None
+
+        assert inEvent.notes is not None or inEvent.rest is not None, "An event must have at least a note or a rest."
 
         if inEvent.notes is not None:
             # NotRest
@@ -139,33 +182,71 @@ class MNXConverter(converter.subConverters.SubConverter):
             # Distinguish between a single note and a chord
             if len(allNotes) == 1:
                 # single note
-                n = allNotes[0]
-                self.setId(n, inEvent.id, True)  # this will replace the note's ID, but the mapping remains
-                return n
+                outNote = allNotes[0]
+                self.setId(outNote, inEvent.id, True)  # this will replace the note's ID, but the mapping remains
             else:
                 # chord
                 c = chord.Chord(allNotes)
                 self.setId(c, inEvent.id)  # associate the chord with event
                 c.duration = dur
-                return c
+                outNote = c
 
-        if inEvent.rest is not None:
+        elif inEvent.rest is not None:
             # Rest
             assert inEvent.notes is None, "It does not make sense to specify notes and rest at the same time."
 
             r = note.Rest()
             r.duration = dur
             self.setId(r, inEvent.id)
-            return r
+            outNote = r
+
+        assert outNote is not None
+
+        if inEvent.markings is not None:
+            # Interestingly enough, MNX accent has up/down pointing designation for accents
+            # but music21 has it for strong accents. Maybe MNX made a mistake here?
+            if inEvent.markings.soft_accent is not None:
+                raise ValueError("Music21 doesn't have support for soft accent.")
+                # or I simply could not find an equivalent one.
+            if inEvent.markings.accent is not None:
+                outNote.articulations.append(articulations.Accent())
+            if inEvent.markings.strong_accent is not None:
+                outNote.articulations.append(articulations.StrongAccent())
+
+            # MNX has a field for breath symbol, but it does not specify what those are.
+            # Music21 supports 'comma', 'tick', or None.
+            # I'm going to assume 'comma' and 'tick' are what MNX intended.
+            if inEvent.markings.breath is not None:
+                a = articulations.BreathMark()
+                a.symbol = inEvent.markings.breath
+                outNote.articulations.append(a)
+
+            if inEvent.markings.staccato is not None:
+                outNote.articulations.append(articulations.Staccato())
+            if inEvent.markings.staccatissimo is not None:
+                outNote.articulations.append(articulations.Staccatissimo())
+            if inEvent.markings.spiccato is not None:
+                outNote.articulations.append(articulations.Spiccato())
+            if inEvent.markings.tenuto is not None:
+                outNote.articulations.append(articulations.Tenuto())
+            if inEvent.markings.unstress is not None:
+                outNote.articulations.append(articulations.Unstress())
+            if inEvent.markings.stress is not None:
+                outNote.articulations.append(articulations.Stress())
+
+            # Interestingly enough, MNX does not seem to have support for
+            # multi-note tremolos?
+            if inEvent.markings.tremolo is not None:
+                e = expressions.Tremolo()
+                e.numberOfMarks = inEvent.markings.tremolo.marks
 
         # TODO: handle .staff
         # TODO: handle .stem_dirction
         # TODO: handle .smufl_font
         # TODO: handle .measure (what even is this?)
         # TODO: handle .orient
-        # TODO: handle .markings
-        # TODO: handle .slurs
-        assert False, "Should not reach here"
+
+        return outNote
 
     def parseNoteValue(self, inDur: mnx.DefNoteValue) -> duration.Duration:
         # In Music21, duration types are defined in duration.py:137.
@@ -282,6 +363,34 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         return outClef
 
+    def parseMeasureLocation(self, text: mnx.DefMeasureLocation) -> Tuple[int, Optional[float]]:
+        # MNX never properly specifies what this string should look like.
+        # The examples are quite contradictory.
+        parts = text.split(':')
+
+        # Example 1: https://w3c.github.io/mnx/docs/comparisons/musicxml/#octave-shifts-8va.
+        # It seems the expected form is <measureNumber>:<position>/<base>,
+        # signifying the absolute position of the end of the 8va spanner.
+        # The measure "index" (as mentioned in the example0 seems to start from 1.
+        if len(parts) == 2:
+            measureNumber = int(parts[0])
+            offset = self.parseFraction([int(x) for x in parts[1]])
+
+            # returns index starting from 0 and offset
+            return measureNumber-1, offset
+
+        # Example 2: https://w3c.github.io/mnx/docs/comparisons/musicxml/#jumps-dal-segno
+        # Example 3: https://w3c.github.io/mnx/docs/comparisons/musicxml/#jumps-ds-al-fine
+        # Those two example only use <measureNumber>, no metrical position.
+        # Jump points specify the target locations. Measure numbers seem to start from 0.
+        # It is unclear what the segno symbol and the fine text's locations
+        # are meant to represent.
+        if len(parts) == 1:
+            # returns index starting from 0 and no offset
+            return int(parts[0]), None
+
+        raise ValueError("Can't parse measure location.")
+
     def parseFraction(self, frac: list[int]) -> float:
         # MNX never specifies how to read fractions.
         # In fact, it never says that fraction has to be a list of two elements.
@@ -309,13 +418,13 @@ class MNXConverter(converter.subConverters.SubConverter):
             raise KeyError(ident, "Identifier does not exist in the ID mappings")
         return self.idMappings[ident]
 
-
 converter.registerSubConverter(MNXConverter)
 
-s: str
-with open('../examples/bach_minuet.json', 'r') as f:
-    s = f.read()
-sc = converter.parse(s, format="mnx")
-sc.show('t')
-# sc.show('musicxml.pdf', makeNotation=False)
-sc.show(makeNotation=False)
+if __name__ == "__main__":
+    s: str
+    with open('../examples/bach_minuet.json', 'r') as f:
+        s = f.read()
+    sc = converter.parse(s, format="mnx")
+    sc.show('t')
+    # sc.show('musicxml.pdf', makeNotation=False)
+    sc.show(makeNotation=False)
