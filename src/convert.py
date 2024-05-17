@@ -3,6 +3,8 @@ from music21 import converter, note, stream, meter, duration, chord, pitch, key,
 import music21
 from typing import Optional, cast, Union, Tuple, Callable, TypeAlias
 import mnx
+import logging
+log = logging.getLogger(__name__)
 
 # A deferred task takes in an object and decides whether to perform the task.
 # If the task has been performed, return True, so the scheduler can remove it from the queue.
@@ -271,12 +273,46 @@ class MNXConverter(converter.subConverters.SubConverter):
             # Need to make a separate copy because
             # otherwise start.sites contains the slur itself.
             sites = list(start.sites)
-            s = spanner.Slur([start, end])
+
+            # There are two kinds of slurs: Slurs that are tied from an event to another event,
+            # and slurs that are additionally associated with specific notes.
+            # I don't think Music21 supports the second kind.
+            sp = spanner.Slur()
+            if slur.start_note is None:
+                assert slur.end_note is None, "Slurs at specific notes must have both start_note and end_note"
+                sp.addSpannedElements(start)
+                sp.addSpannedElements(end)
+            else:
+                assert slur.end_note is not None, "Slurs at specific notes must have both start_note and end_note"
+                log.warning(f"Specific-note slur from {slur.start_note} to {slur.end_note} is omitted.")
+                # sp.addSpannedElements(self.lookup(slur.start_note))
+                # sp.addSpannedElements(self.lookup(slur.end_note))
+                sp.addSpannedElements(start)
+                sp.addSpannedElements(end)
+
+            # MNX did not document lineType, but it seems to be
+            # directly inspired by MusicXML.
+            sp.lineType = slur.line_type
+
+            if slur.side is not None:
+                sp.placement = {
+                    'up': 'above',
+                    'down': 'below'
+                }[slur.side]
+
+            # TODO: Handle .side_end (not sure what it means).
+
+            # TODO: Handle incomplete slur with .location (can't find how Music21 represents this).
+
+            # Now actually add the slur.
             for site in sites:
-                site.append(s)
+                site.append(sp)
             return True
 
-        self.addTask(task)
+        if slur.target is None:
+            log.warning(f"An incomplete slur is omitted.")
+        else:
+            self.addTask(task)
 
     def parseNoteValue(self, inDur: mnx.DefNoteValue) -> duration.Duration:
         # In Music21, duration types are defined in duration.py:137.
