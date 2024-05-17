@@ -1,4 +1,4 @@
-from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat, spanner
+from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat, spanner, tie
 
 import music21
 from typing import Optional, cast, Union, Tuple, Callable, TypeAlias
@@ -26,9 +26,9 @@ class MNXConverter(converter.subConverters.SubConverter):
         self.tasks.append(task)
 
     def runTasks(self, obj: music21.Music21Object):
-        doneTasks = [task for task in self.tasks if task(obj)]
-        for task in doneTasks:
-            self.tasks.remove(task)
+        doneIndices = [i for i, task in enumerate(self.tasks) if task(obj)]
+        for idx in reversed(doneIndices):
+            self.tasks.pop(idx)
 
     def parseData(self, strData: str, number: int | None = None) -> None:
         # Parse JSON
@@ -53,10 +53,10 @@ class MNXConverter(converter.subConverters.SubConverter):
 
     def parsePart(self, inPart: mnx.Top.Part) -> stream.Part:
         outPart = stream.Part()
+        self.setId(outPart, inPart.id)
 
         outPart.partName = inPart.name
         outPart.partAbbreviation = inPart.short_name
-        self.setId(outPart, inPart.id)
 
         assert inPart.measures is not None, "parts[_].measures is not required but that does not make sense semantically"
         assert self.globalInfo.measures is not None, "global.measures is not required but that does not make sense semantically"
@@ -139,12 +139,6 @@ class MNXConverter(converter.subConverters.SubConverter):
                 outMeas.insert(outClef)
 
         # TODO: handle globalMeas.ending
-        # if globalMeas.ending is not None:
-        #     def addEnding():
-        #         numbers = globalMeas.ending.numbers
-        #         assert numbers is not None, "It does not make sense for there to be no numbers for endings."
-        #         repeat.insertRepeatEnding(self.stream, outMeas.number, outMeas.number+globalMeas.ending.duration-1, numbers)
-        #     self.tasks.append(addEnding)
 
         # If the measure has only one voice, there is no need to have a stream.Voice object.
         return outMeas.flattenUnnecessaryVoices()
@@ -345,6 +339,7 @@ class MNXConverter(converter.subConverters.SubConverter):
 
     def parseNote(self, inNote: mnx.DefEvent.Note) -> note.Note:
         outNote = note.Note()
+        self.setId(outNote, inNote.id)
 
         # handle the pitch
         outNote.pitch = pitch.Pitch(step=inNote.pitch.step,
@@ -360,17 +355,43 @@ class MNXConverter(converter.subConverters.SubConverter):
                     outNote.pitch.accidental = pitch.Accidental(0)
                 outNote.pitch.accidental.displayType = 'always'
 
-        self.setId(outNote, inNote.id)
+        # handle ties
+        if inNote.tie is not None:
+            assert inNote.tie.target is not None, "It does not make sense for a tie to have no ending target."
+            # TODO: Figure out the bug. There's a very strange bug where
+            #       if I move this portion of code into the queued task instead,
+            #       some tie.Tie('start') never seems to get successfully assigned,
+            #       causing some ties to be lost. This version here works, though.
+            if outNote.tie is not None and outNote.tie.type != 'start':
+                outNote.tie = tie.Tie('continue')
+            else:
+                outNote.tie = tie.Tie('start')
+            # TODO: Handle tie_.location (not sure what it means)
+            self.queueTie(outNote, inNote.tie)
 
         # TODO: handle .class_
         # TODO: handle .perform
-        # TODO: handle .tie
         # TODO: handle .staff
         # TODO: handle .accidental_display.editorial
         # TODO: handle .accidental_display.cautionary
         # TODO: handle .smufl_font
 
         return outNote
+
+    def queueTie(self, start: note.GeneralNote, tie_: mnx.DefEvent.Note.Tie) -> None:
+        def task(end: music21.Music21Object):
+            if end.id != tie_.target:
+                return False
+            assert isinstance(end, note.GeneralNote)
+
+            if end.tie is not None and end.tie.type != 'stop':
+                end.tie = tie.Tie('continue')
+            else:
+                end.tie = tie.Tie('stop')
+
+            return True
+
+        self.addTask(task)
 
     def processBeam(self, inBeam: mnx.DefBeam, level: int) -> None:
 
