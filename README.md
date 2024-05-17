@@ -1,5 +1,40 @@
 # MNX to music21 converter
 
+## Results
+
+This document recounts the effort spent on the JSON-schema-to-dataclass converter,
+except this section which discusses the MNX converter itself.
+
+A lot of the code for this generator can be quite tricky to run because
+it involves some manual error-fixing. I highly recommend doing `git reset --hard`
+once you are done playing with it to reset the project to a good state.
+
+The actual project itself is in `src/` and does not need much explanation (I think).
+
+You can run the converter (`convert.py`) through `test-convert-all.ipynb`
+to see the results. Alternatively, you can write your own code that has
+```py
+import mnx
+import converter
+```
+See example at the very bottom of `convert.py`.
+
+I have not had the chance to implement all features described by the MNX spec,
+due to other end-of-term obligations and the deadline. Some features are themselves
+not implementable because they are poorly specified in the schema.
+
+The Jupyter notebook lists all examples that have been implemented correctly.
+
+Despite the project being incomplete, I hope that it does demonstrate
+the feasibility of writing a converter from MNX to music21 and
+how one might go about coding it.
+
+Thanks for a great class this semester!
+
+—Pleng
+
+---
+
 ## Generating code from JSON schema
 
 While MNX gives us [a specification][mnx-schema] in the form of a [JSON Schema][json-schema],
@@ -10,6 +45,8 @@ then writing code based on MNX document objects would be much more convenient.
 This is especially important because MNX is still in alpha, meaning we need a way for us
 to easily detect when the specification changes (e.g. the field name may have changed).
 A type system could help.
+
+---
 
 ### Attempt 1: OpenAPI generator
 
@@ -115,6 +152,8 @@ simply write your own JSON-schema-to-Python-dataclasses generator that supports
 the subset of features used by the MNX schema. This should generate pretty clean and readable code
 and should be fairly minimal.
 
+---
+
 ### Attempt 2: Schema wizard in Python
 
 I tried to write my own program to convert JSON schemas into Python dataclasses, using Python.
@@ -131,6 +170,8 @@ You can see the half-working converter in `schema-wizard-py/schema-converter.py`
 and the result, manually half-cleaned, in `schema-wizard-py/out-manual-clean.py`.
 
 **The code has not been maintained since.**
+
+---
 
 ### Attempt 3: Schema wizard in Rust
 
