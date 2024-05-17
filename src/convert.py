@@ -1,9 +1,12 @@
-from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat
+from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat, spanner
 
 import music21
-from typing import Optional, cast, Union, Tuple, Callable
+from typing import Optional, cast, Union, Tuple, Callable, TypeAlias
 import mnx
 
+# A deferred task takes in an object and decides whether to perform the task.
+# If the task has been performed, return True, so the scheduler can remove it from the queue.
+Deferred: TypeAlias = Callable[[music21.Music21Object], bool]
 
 class MNXConverter(converter.subConverters.SubConverter):
     registerFormats = ("mnx",)
@@ -14,9 +17,16 @@ class MNXConverter(converter.subConverters.SubConverter):
 
     globalInfo: mnx.Top.Global
 
-    # Things that require future data to be executed.
-    # I defer all of them to the very end.
-    tasks: list[Callable[[], None]]
+    # List of tasks that have been deferred to further in the score.
+    tasks: list[Deferred]
+
+    def addTask(self, task: Deferred):
+        self.tasks.append(task)
+
+    def runTasks(self, obj: music21.Music21Object):
+        doneTasks = [task for task in self.tasks if task(obj)]
+        for task in doneTasks:
+            self.tasks.remove(task)
 
     def parseData(self, strData: str, number: int | None = None) -> None:
         # Parse JSON
@@ -34,9 +44,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             outPart = self.parsePart(inPart)
             sc.append(outPart)
 
-        # Do some final deferred tasks.
-        for task in self.tasks:
-            task()
+        assert len(self.tasks) == 0, "Tasks not empty. Something went wrong."
 
         # Done. Put the result in self.stream.
         self.stream = sc
@@ -246,7 +254,29 @@ class MNXConverter(converter.subConverters.SubConverter):
         # TODO: handle .measure (what even is this?)
         # TODO: handle .orient
 
+        # Slurs
+        if inEvent.slurs is not None:
+            for slur in inEvent.slurs:
+                self.queueSlur(outNote, slur)
+
         return outNote
+
+    def queueSlur(self, start: note.GeneralNote, slur: mnx.DefEvent.Slur):
+        def task(end: music21.Music21Object) -> bool:
+            # We add slur as soon as the target note is found.
+            if end.id != slur.target:
+                return False
+            assert isinstance(end, note.GeneralNote)
+
+            # Need to make a separate copy because
+            # otherwise start.sites contains the slur itself.
+            sites = list(start.sites)
+            s = spanner.Slur([start, end])
+            for site in sites:
+                site.append(s)
+            return True
+
+        self.addTask(task)
 
     def parseNoteValue(self, inDur: mnx.DefNoteValue) -> duration.Duration:
         # In Music21, duration types are defined in duration.py:137.
@@ -412,6 +442,7 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         obj.id = ident
         self.idMappings[ident] = obj
+        self.runTasks(obj)
 
     def lookup(self, ident: str) -> music21.Music21Object:
         if ident not in self.idMappings:
