@@ -1,14 +1,34 @@
-from music21 import converter, note, stream, meter, duration, chord, pitch, key, beam, clef, articulations, expressions, tempo, bar, repeat, spanner, tie
+from music21 import (
+    converter,
+    note,
+    stream,
+    meter,
+    duration,
+    chord,
+    pitch,
+    key,
+    beam,
+    clef,
+    articulations,
+    expressions,
+    tempo,
+    bar,
+    repeat,
+    spanner,
+    tie,
+)
 
 import music21
 from typing import Optional, cast, Union, Tuple, Callable, TypeAlias
 import mnx
 import logging
+
 log = logging.getLogger(__name__)
 
 # A deferred task takes in an object and decides whether to perform the task.
 # If the task has been performed, return True, so the scheduler can remove it from the queue.
 Deferred: TypeAlias = Callable[[music21.Music21Object], bool]
+
 
 class MNXConverter(converter.subConverters.SubConverter):
     registerFormats = ("mnx",)
@@ -62,8 +82,12 @@ class MNXConverter(converter.subConverters.SubConverter):
         outPart.partName = inPart.name
         outPart.partAbbreviation = inPart.short_name
 
-        assert inPart.measures is not None, "parts[_].measures is not required but that does not make sense semantically"
-        assert self.globalInfo.measures is not None, "global.measures is not required but that does not make sense semantically"
+        assert (
+            inPart.measures is not None
+        ), "parts[_].measures is not required but that does not make sense semantically"
+        assert (
+            self.globalInfo.measures is not None
+        ), "global.measures is not required but that does not make sense semantically"
         assert len(inPart.measures) == len(self.globalInfo.measures)
 
         for inMeas, globalMeas in zip(inPart.measures, self.globalInfo.measures):
@@ -74,7 +98,9 @@ class MNXConverter(converter.subConverters.SubConverter):
         # TODO: handle .smufl_font
         return outPart
 
-    def parseMeasure(self, inMeas: mnx.Top.Part.Measure, globalMeas: mnx.Top.Global.Measure) -> stream.Measure:
+    def parseMeasure(
+        self, inMeas: mnx.Top.Part.Measure, globalMeas: mnx.Top.Global.Measure
+    ) -> stream.Measure:
         outMeas = stream.Measure()
 
         if globalMeas.number is not None:
@@ -87,7 +113,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             outMeas.append(k)
 
         if globalMeas.time is not None:
-            t = meter.TimeSignature(f'{globalMeas.time.count}/{globalMeas.time.unit}')
+            t = meter.TimeSignature(f"{globalMeas.time.count}/{globalMeas.time.unit}")
             outMeas.append(t)
 
         # I gave up on implementing these jumps.
@@ -171,13 +197,17 @@ class MNXConverter(converter.subConverters.SubConverter):
         assert inEvent.type == "event", "Wrong event type"
         assert inEvent.duration is not None, "An event should have a duration specified"
         dur = self.parseNoteValue(inEvent.duration)
-        outNote: note.GeneralNote|None = None
+        outNote: note.GeneralNote | None = None
 
-        assert inEvent.notes is not None or inEvent.rest is not None, "An event must have at least a note or a rest."
+        assert (
+            inEvent.notes is not None or inEvent.rest is not None
+        ), "An event must have at least a note or a rest."
 
         if inEvent.notes is not None:
             # NotRest
-            assert inEvent.rest is None, "It does not make sense to specify notes and rest at the same time."
+            assert (
+                inEvent.rest is None
+            ), "It does not make sense to specify notes and rest at the same time."
 
             # Get all the notes
             allNotes = []
@@ -185,13 +215,17 @@ class MNXConverter(converter.subConverters.SubConverter):
                 n = self.parseNote(inNote)
                 n.duration = dur
                 allNotes.append(n)
-            assert len(allNotes) > 0, "A rest should be specified through .rest field, not .notes"
+            assert (
+                len(allNotes) > 0
+            ), "A rest should be specified through .rest field, not .notes"
 
             # Distinguish between a single note and a chord
             if len(allNotes) == 1:
                 # single note
                 outNote = allNotes[0]
-                self.setId(outNote, inEvent.id, True)  # this will replace the note's ID, but the mapping remains
+                self.setId(
+                    outNote, inEvent.id, True
+                )  # this will replace the note's ID, but the mapping remains
             else:
                 # chord
                 c = chord.Chord(allNotes)
@@ -201,7 +235,9 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         elif inEvent.rest is not None:
             # Rest
-            assert inEvent.notes is None, "It does not make sense to specify notes and rest at the same time."
+            assert (
+                inEvent.notes is None
+            ), "It does not make sense to specify notes and rest at the same time."
 
             r = note.Rest()
             r.duration = dur
@@ -266,7 +302,9 @@ class MNXConverter(converter.subConverters.SubConverter):
             # We add slur as soon as the target note is found.
             if end.id != slur.target:
                 return False
-            assert isinstance(end, note.GeneralNote), "Target note needs to actually be a note"
+            assert isinstance(
+                end, note.GeneralNote
+            ), "Target note needs to actually be a note"
 
             # Need to make a separate copy because
             # otherwise start.sites contains the slur itself.
@@ -277,12 +315,18 @@ class MNXConverter(converter.subConverters.SubConverter):
             # I don't think Music21 supports the second kind.
             sp = spanner.Slur()
             if slur.start_note is None:
-                assert slur.end_note is None, "Slurs at specific notes must have both start_note and end_note"
+                assert (
+                    slur.end_note is None
+                ), "Slurs at specific notes must have both start_note and end_note"
                 sp.addSpannedElements(start)
                 sp.addSpannedElements(end)
             else:
-                assert slur.end_note is not None, "Slurs at specific notes must have both start_note and end_note"
-                log.warning(f"Specific-note slur from {slur.start_note} to {slur.end_note} is omitted.")
+                assert (
+                    slur.end_note is not None
+                ), "Slurs at specific notes must have both start_note and end_note"
+                log.warning(
+                    f"Specific-note slur from {slur.start_note} to {slur.end_note} is omitted."
+                )
                 # sp.addSpannedElements(self.lookup(slur.start_note))
                 # sp.addSpannedElements(self.lookup(slur.end_note))
                 sp.addSpannedElements(start)
@@ -293,10 +337,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             sp.lineType = slur.line_type
 
             if slur.side is not None:
-                sp.placement = {
-                    'up': 'above',
-                    'down': 'below'
-                }[slur.side]
+                sp.placement = {"up": "above", "down": "below"}[slur.side]
 
             # TODO: Handle .side_end (not sure what it means).
 
@@ -316,24 +357,24 @@ class MNXConverter(converter.subConverters.SubConverter):
         # In Music21, duration types are defined in duration.py:137.
         # It seems like MNX takes inspiration directly from this.
         mnxToM21Type: dict[str, str] = {
-            'duplex-maxima': 'duplex-maxima',
-            'maxima': 'maxima',
-            'longa': 'longa',
-            'breve': 'breve',
-            'whole': 'whole',
-            'half': 'half',
-            'quarter': 'quarter',
-            'eighth': 'eighth',
-            '16th': '16th',
-            '32nd': '32nd',
-            '64th': '64th',
-            '128th': '128th',
-            '256th': '256th',
-            '512th': '512th',
-            '1024th': '1024th',
-            '2048th': '2048th',
+            "duplex-maxima": "duplex-maxima",
+            "maxima": "maxima",
+            "longa": "longa",
+            "breve": "breve",
+            "whole": "whole",
+            "half": "half",
+            "quarter": "quarter",
+            "eighth": "eighth",
+            "16th": "16th",
+            "32nd": "32nd",
+            "64th": "64th",
+            "128th": "128th",
+            "256th": "256th",
+            "512th": "512th",
+            "1024th": "1024th",
+            "2048th": "2048th",
         }
-        if inDur.base == '4096th':
+        if inDur.base == "4096th":
             raise ValueError("MNX has 4096th but music21 only supports up to 2048th")
 
         return duration.Duration(
@@ -346,8 +387,7 @@ class MNXConverter(converter.subConverters.SubConverter):
         self.setId(outNote, inNote.id)
 
         # handle the pitch
-        outNote.pitch = pitch.Pitch(step=inNote.pitch.step,
-                                    octave=inNote.pitch.octave)
+        outNote.pitch = pitch.Pitch(step=inNote.pitch.step, octave=inNote.pitch.octave)
 
         if inNote.pitch.alter is not None:
             outNote.pitch.accidental = pitch.Accidental(inNote.pitch.alter)
@@ -357,19 +397,21 @@ class MNXConverter(converter.subConverters.SubConverter):
             if inNote.accidental_display.show:
                 if outNote.pitch.accidental is None:
                     outNote.pitch.accidental = pitch.Accidental(0)
-                outNote.pitch.accidental.displayType = 'always'
+                outNote.pitch.accidental.displayType = "always"
 
         # handle ties
         if inNote.tie is not None:
-            assert inNote.tie.target is not None, "It does not make sense for a tie to have no ending target."
+            assert (
+                inNote.tie.target is not None
+            ), "It does not make sense for a tie to have no ending target."
             # TODO: Figure out the bug. There's a very strange bug where
             #       if I move this portion of code into the queued task instead,
             #       some tie.Tie('start') never seems to get successfully assigned,
             #       causing some ties to be lost. This version here works, though.
-            if outNote.tie is not None and outNote.tie.type != 'start':
-                outNote.tie = tie.Tie('continue')
+            if outNote.tie is not None and outNote.tie.type != "start":
+                outNote.tie = tie.Tie("continue")
             else:
-                outNote.tie = tie.Tie('start')
+                outNote.tie = tie.Tie("start")
             # TODO: Handle tie_.location (not sure what it means)
             self.queueTie(outNote, inNote.tie)
 
@@ -386,54 +428,69 @@ class MNXConverter(converter.subConverters.SubConverter):
         def task(end: music21.Music21Object):
             if end.id != tie_.target:
                 return False
-            assert isinstance(end, note.GeneralNote), "Target note needs to actually be a note"
+            assert isinstance(
+                end, note.GeneralNote
+            ), "Target note needs to actually be a note"
 
-            if end.tie is not None and end.tie.type != 'stop':
-                end.tie = tie.Tie('continue')
+            if end.tie is not None and end.tie.type != "stop":
+                end.tie = tie.Tie("continue")
             else:
-                end.tie = tie.Tie('stop')
+                end.tie = tie.Tie("stop")
 
             return True
 
         self.addTask(task)
 
     def processBeam(self, inBeam: mnx.DefBeam, level: int) -> None:
-
         # Add full beams
-        assert len(inBeam.events), "A beam must consist of at least one events; use a hook instead."
-        eventIds = [eventId for eventId in inBeam.events if isinstance(self.lookup(eventId), note.NotRest)]
+        assert len(
+            inBeam.events
+        ), "A beam must consist of at least one events; use a hook instead."
+        eventIds = [
+            eventId
+            for eventId in inBeam.events
+            if isinstance(self.lookup(eventId), note.NotRest)
+        ]
         for i, eventId in enumerate(eventIds):
             event = cast(note.NotRest, self.lookup(eventId))
 
             beamType: str
             if i == 0:
-                beamType = 'start'
-            elif i == len(eventIds)-1:
-                beamType = 'stop'
+                beamType = "start"
+            elif i == len(eventIds) - 1:
+                beamType = "stop"
             else:
-                beamType = 'continue'
+                beamType = "continue"
             event.beams.append(beam.Beam(type=beamType, number=level))
 
         # Add inner beams
         if inBeam.inner is not None:
-            assert inBeam.hooks is None, "It does not make sense for inner beams and hooks to be specified at the same level."
+            assert (
+                inBeam.hooks is None
+            ), "It does not make sense for inner beams and hooks to be specified at the same level."
             for n in inBeam.inner:
                 n = mnx.DefBeam.from_dict(n)
-                self.processBeam(n, level+1)
+                self.processBeam(n, level + 1)
 
         # Add hooks
         if inBeam.hooks is not None:
-            assert inBeam.inner is None, "It does not make sense for inner beams and hooks to be specified at the same level."
+            assert (
+                inBeam.inner is None
+            ), "It does not make sense for inner beams and hooks to be specified at the same level."
             for hook in inBeam.hooks:
                 n = self.lookup(hook.event)
                 assert isinstance(n, note.NotRest)
-                n.beams.append(beam.Beam(type="partial", direction=hook.direction, number=level+1))
+                n.beams.append(
+                    beam.Beam(
+                        type="partial", direction=hook.direction, number=level + 1
+                    )
+                )
 
     def parseClef(self, inClef: mnx.Top.Part.Measure.Clef) -> clef.Clef:
         signToClefType: dict[str, clef.Clef] = {
-            'C': clef.CClef(),
-            'F': clef.FClef(),
-            'G': clef.GClef(),
+            "C": clef.CClef(),
+            "F": clef.FClef(),
+            "G": clef.GClef(),
         }
         outClef = signToClefType[inClef.clef.sign]
 
@@ -443,7 +500,7 @@ class MNXConverter(converter.subConverters.SubConverter):
         # Positive numbers refer to spaces or lines above.
         # Meanwhile, for Music21, the bottom line is line 1, next line up is 2, ...
         # There doesn't seem to be any support for clefs that go in between lines.
-        pos = 3 + inClef.clef.staff_position/2
+        pos = 3 + inClef.clef.staff_position / 2
         assert pos % 1.0 == 0.0, "Music21 only supports clefs on lines, not spaces."
         pos = int(pos)
         outClef.line = pos
@@ -454,10 +511,12 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         return outClef
 
-    def parseMeasureLocation(self, text: mnx.DefMeasureLocation) -> Tuple[int, Optional[float]]:
+    def parseMeasureLocation(
+        self, text: mnx.DefMeasureLocation
+    ) -> Tuple[int, Optional[float]]:
         # MNX never properly specifies what this string should look like.
         # The examples are quite contradictory.
-        parts = text.split(':')
+        parts = text.split(":")
 
         # Example 1: https://w3c.github.io/mnx/docs/comparisons/musicxml/#octave-shifts-8va.
         # It seems the expected form is <measureNumber>:<position>/<base>,
@@ -468,7 +527,7 @@ class MNXConverter(converter.subConverters.SubConverter):
             offset = self.parseFraction([int(x) for x in parts[1]])
 
             # returns index starting from 0 and offset
-            return measureNumber-1, offset
+            return measureNumber - 1, offset
 
         # Example 2: https://w3c.github.io/mnx/docs/comparisons/musicxml/#jumps-dal-segno
         # Example 3: https://w3c.github.io/mnx/docs/comparisons/musicxml/#jumps-ds-al-fine
@@ -487,9 +546,14 @@ class MNXConverter(converter.subConverters.SubConverter):
         # In fact, it never says that fraction has to be a list of two elements.
         # Therefore, I'm making assumptions here.
         assert len(frac) == 2, "Fraction has to have exactly two elements."
-        return frac[0]/frac[1]
+        return frac[0] / frac[1]
 
-    def setId(self, obj: music21.Music21Object, ident: Optional[str], allowShadowing: bool = False) -> None:
+    def setId(
+        self,
+        obj: music21.Music21Object,
+        ident: Optional[str],
+        allowShadowing: bool = False,
+    ) -> None:
         # ident stands for identifier
         if ident is None:
             return
@@ -499,7 +563,11 @@ class MNXConverter(converter.subConverters.SubConverter):
 
         if not allowShadowing:
             if obj.id in self.idMappings:
-                raise ValueError(ident, obj, "The object already has an existing identifier. Should not rewrite.")
+                raise ValueError(
+                    ident,
+                    obj,
+                    "The object already has an existing identifier. Should not rewrite.",
+                )
 
         obj.id = ident
         self.idMappings[ident] = obj
@@ -510,13 +578,14 @@ class MNXConverter(converter.subConverters.SubConverter):
             raise KeyError(ident, "Identifier does not exist in the ID mappings")
         return self.idMappings[ident]
 
+
 converter.registerSubConverter(MNXConverter)
 
 if __name__ == "__main__":
     s: str
-    with open('../examples/bach_minuet.json', 'r') as f:
+    with open("../examples/bach_minuet.json", "r") as f:
         s = f.read()
     sc = converter.parse(s, format="mnx")
-    sc.show('t')
+    sc.show("t")
     # sc.show('musicxml.pdf', makeNotation=False)
     sc.show(makeNotation=False)

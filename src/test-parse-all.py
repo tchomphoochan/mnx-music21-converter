@@ -3,8 +3,8 @@ import json
 import os
 import sys
 
-example_path = '../examples'
-output_path = '../outputs'
+example_path = "../examples"
+output_path = "../outputs"
 os.makedirs(output_path, exist_ok=True)
 filenames = os.listdir(example_path)
 for filename in filenames:

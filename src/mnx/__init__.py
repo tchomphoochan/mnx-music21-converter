@@ -291,6 +291,7 @@ class DefBeam(JSONWizard):
     # inner: Optional[DefBeamList] = json_field(["inner"], default=None)
     inner: Optional[list] = json_field(["inner"], default=None)
 
+
 @dataclass
 class DefNoteValueQuantity(JSONWizard):
     # required fields:
